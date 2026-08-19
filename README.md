@@ -22,3 +22,9 @@ None of these features exist yet.
 ## Development
 
 NexusAgent is being developed incrementally, through small, focused changes.
+
+Run all local quality checks (lint, format check, tests) with:
+
+```bash
+python scripts/check.py
+```
