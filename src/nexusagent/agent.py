@@ -31,5 +31,9 @@ class Agent:
         if not input_text.strip():
             raise ValueError("input_text must not be empty or whitespace-only")
 
-        output = self.provider.generate(input_text)
+        try:
+            output = self.provider.generate(input_text)
+        except Exception as exc:  # noqa: BLE001
+            return AgentResult(output=f"provider error: {exc}", success=False)
+
         return AgentResult(output=output, success=True)

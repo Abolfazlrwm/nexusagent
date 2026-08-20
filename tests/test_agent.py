@@ -76,15 +76,29 @@ def test_agent_run_raises_on_whitespace_only_input():
         agent.run("   ")
 
 
-def test_agent_run_propagates_provider_exception():
+def test_agent_run_returns_unsuccessful_result_on_provider_failure():
     class FailingProvider:
         def generate(self, prompt: str) -> str:
             raise RuntimeError("provider failed")
 
     agent = Agent(FailingProvider())
 
-    with pytest.raises(RuntimeError):
-        agent.run("hello")
+    result = agent.run("hello")
+
+    assert isinstance(result, AgentResult)
+    assert result.success is False
+
+
+def test_agent_run_provider_failure_message_in_output():
+    class FailingProvider:
+        def generate(self, prompt: str) -> str:
+            raise RuntimeError("provider failed")
+
+    agent = Agent(FailingProvider())
+
+    result = agent.run("hello")
+
+    assert result.output == "provider error: provider failed"
 
 
 def test_agent_run_does_not_call_external_services(monkeypatch):
