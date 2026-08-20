@@ -1,13 +1,14 @@
-"""Agent Core contract for NexusAgent.
+"""Agent Core for NexusAgent.
 
 Defines the minimal contract for running an agent: input text in,
-an AgentResult out. This does not connect to any LLM or external
-service — it establishes the shape future implementations will fill.
+an AgentResult out. The Agent delegates generation to a Provider.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+
+from nexusagent.provider import Provider
 
 
 @dataclass(frozen=True)
@@ -19,12 +20,8 @@ class AgentResult:
 
 
 class Agent:
-    """Minimal agent contract.
-
-    This base implementation performs no reasoning and does not call
-    any LLM or external service. It exists to establish the run()
-    contract that future, real agent implementations will fulfill.
-    """
+    def __init__(self, provider: Provider) -> None:
+        self.provider = provider
 
     def run(self, input_text: str) -> AgentResult:
         """Run the agent on the given input and return an AgentResult."""
@@ -34,7 +31,5 @@ class Agent:
         if not input_text.strip():
             raise ValueError("input_text must not be empty or whitespace-only")
 
-        # Deterministic placeholder only — no LLM/provider is called here.
-        # A real execution mechanism will replace this in a future task.
-        output = f"[placeholder] received: {input_text}"
+        output = self.provider.generate(input_text)
         return AgentResult(output=output, success=True)
