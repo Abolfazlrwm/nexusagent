@@ -41,6 +41,16 @@ def test_create_runtime_accepts_custom_settings():
     assert isinstance(runtime.agent.provider, FakeProvider)
 
 
+def test_runtime_wires_settings_into_provider_config():
+    settings = Settings(provider="fake", model="fake-model", api_key="secret")
+
+    runtime = create_runtime(settings)
+
+    config = runtime.agent.provider.config
+    assert config.model == "fake-model"
+    assert config.api_key == "secret"
+
+
 def test_runtime_delegates_to_agent():
     calls = {}
 

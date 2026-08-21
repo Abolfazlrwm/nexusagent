@@ -3,6 +3,7 @@ from __future__ import annotations
 from nexusagent.agent import Agent, AgentResult
 from nexusagent.config import Settings
 from nexusagent.factory import create_provider
+from nexusagent.provider import ProviderConfig
 
 
 class Runtime:
@@ -17,6 +18,7 @@ def create_runtime(settings: Settings | None = None) -> Runtime:
     if settings is None:
         settings = Settings.from_env()
 
-    provider = create_provider(settings.provider)
+    config = ProviderConfig(model=settings.model, api_key=settings.api_key)
+    provider = create_provider(settings.provider, config)
     agent = Agent(provider)
     return Runtime(agent)

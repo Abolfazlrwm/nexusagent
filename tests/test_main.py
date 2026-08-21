@@ -86,3 +86,10 @@ def test_cli_does_not_perform_network_access(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["nexusagent", "hello"])
 
     main()
+
+
+def test_cli_does_not_leak_api_key():
+    result = run_cli("Hello", env={"NEXUS_API_KEY": "super-secret-value"})
+
+    assert "super-secret-value" not in result.stdout
+    assert "super-secret-value" not in result.stderr
