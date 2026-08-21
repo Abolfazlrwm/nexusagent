@@ -1,15 +1,21 @@
+import os
 import subprocess
 import sys
 
 from nexusagent.main import main
 
 
-def run_cli(*args: str) -> subprocess.CompletedProcess:
+def run_cli(*args: str, env: dict | None = None) -> subprocess.CompletedProcess:
+    full_env = os.environ.copy()
+    if env:
+        full_env.update(env)
+
     return subprocess.run(
         [sys.executable, "-m", "nexusagent", *args],
         capture_output=True,
         text=True,
         check=False,
+        env=full_env,
     )
 
 
@@ -23,6 +29,40 @@ def test_cli_with_valid_input_prints_fake_provider_output():
     result = run_cli("Hello NexusAgent")
 
     assert result.stdout.strip() == "fake response: Hello NexusAgent"
+
+
+def test_cli_with_explicit_provider_option():
+    result = run_cli("--provider", "fake", "Hello NexusAgent")
+
+    assert result.returncode == 0
+    assert result.stdout.strip() == "fake response: Hello NexusAgent"
+
+
+def test_cli_uses_provider_from_environment():
+    result = run_cli("Hello", env={"NEXUS_PROVIDER": "fake"})
+
+    assert result.returncode == 0
+    assert result.stdout.strip() == "fake response: Hello"
+
+
+def test_cli_provider_option_overrides_environment():
+    result = run_cli("--provider", "fake", "Hello", env={"NEXUS_PROVIDER": "does-not-exist"})
+
+    assert result.returncode == 0
+    assert result.stdout.strip() == "fake response: Hello"
+
+
+def test_cli_with_unsupported_provider_exits_nonzero():
+    result = run_cli("--provider", "does-not-exist", "Hello")
+
+    assert result.returncode != 0
+
+
+def test_cli_with_unsupported_provider_prints_clean_error():
+    result = run_cli("--provider", "does-not-exist", "Hello")
+
+    assert "Traceback" not in result.stderr
+    assert "does-not-exist" in result.stderr
 
 
 def test_cli_without_input_exits_nonzero():
