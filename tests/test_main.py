@@ -110,3 +110,34 @@ def test_cli_selecting_http_provider_does_not_perform_network_access(monkeypatch
     monkeypatch.setattr("nexusagent.http_provider.urllib.request.urlopen", fail_if_called)
 
     create_provider("http", ProviderConfig(endpoint="https://example.test"))
+
+
+def test_cli_http_provider_without_endpoint_exits_nonzero():
+    result = run_cli("--provider", "http", "Hello", env={"NEXUS_ENDPOINT": "", "NEXUS_API_KEY": ""})
+
+    assert result.returncode != 0
+
+
+def test_cli_http_provider_without_endpoint_prints_clean_error():
+    result = run_cli("--provider", "http", "Hello", env={"NEXUS_ENDPOINT": "", "NEXUS_API_KEY": ""})
+
+    assert "Traceback" not in result.stderr
+
+
+def test_cli_http_provider_invalid_endpoint_scheme_exits_nonzero():
+    result = run_cli("--provider", "http", "Hello", env={"NEXUS_ENDPOINT": "ftp://example.test"})
+
+    assert result.returncode != 0
+    assert "Traceback" not in result.stderr
+
+
+def test_cli_configuration_error_does_not_leak_api_key():
+    result = run_cli(
+        "--provider",
+        "http",
+        "Hello",
+        env={"NEXUS_ENDPOINT": "", "NEXUS_API_KEY": "super-secret-value"},
+    )
+
+    assert "super-secret-value" not in result.stdout
+    assert "super-secret-value" not in result.stderr

@@ -18,6 +18,8 @@ def create_runtime(settings: Settings | None = None) -> Runtime:
     if settings is None:
         settings = Settings.from_env()
 
+    settings.validate()
+
     config = ProviderConfig(
         model=settings.model,
         api_key=settings.api_key,

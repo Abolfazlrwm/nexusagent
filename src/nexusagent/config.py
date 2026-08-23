@@ -6,8 +6,12 @@ external configuration frameworks are used at this stage.
 
 from __future__ import annotations
 
+import math
 import os
 from dataclasses import dataclass
+from urllib.parse import urlparse
+
+SUPPORTED_PROVIDERS = {"fake", "http"}
 
 
 @dataclass(frozen=True, repr=False)
@@ -43,3 +47,26 @@ class Settings:
             f"provider={self.provider!r}, endpoint={self.endpoint!r}, "
             f"timeout={self.timeout!r})"
         )
+
+    def validate(self) -> None:
+        """Validate the configuration locally, without any network access.
+
+        Raises ValueError with a clear, safe message on the first
+        problem found. Never includes the API key.
+        """
+        if self.provider not in SUPPORTED_PROVIDERS:
+            raise ValueError(f"Unsupported provider: {self.provider!r}")
+
+        if self.model is not None and not self.model.strip():
+            raise ValueError("Model must not be empty")
+
+        if not math.isfinite(self.timeout) or self.timeout <= 0:
+            raise ValueError("Timeout must be a positive finite number")
+
+        if self.provider == "http":
+            if not self.endpoint or not self.endpoint.strip():
+                raise ValueError("HTTP provider requires an endpoint")
+
+            scheme = urlparse(self.endpoint).scheme
+            if scheme not in ("http", "https"):
+                raise ValueError("Endpoint must use http or https")

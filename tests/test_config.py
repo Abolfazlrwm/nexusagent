@@ -101,3 +101,121 @@ def test_repr_does_not_expose_api_key(monkeypatch):
 
     assert "super-secret-value" not in repr(settings)
     assert "set" in repr(settings)
+
+
+def test_validate_accepts_default_fake_settings():
+    Settings().validate()
+
+
+def test_validate_accepts_valid_http_settings():
+    Settings(
+        provider="http",
+        endpoint="https://example.test/generate",
+        timeout=10,
+    ).validate()
+
+
+def test_validate_accepts_http_without_api_key():
+    Settings(
+        provider="http",
+        endpoint="https://example.test/generate",
+        api_key=None,
+    ).validate()
+
+
+def test_validate_rejects_unsupported_provider():
+    with pytest.raises(ValueError, match="something"):
+        Settings(provider="something").validate()
+
+
+def test_validate_rejects_empty_model():
+    with pytest.raises(ValueError):
+        Settings(model="").validate()
+
+
+def test_validate_rejects_whitespace_only_model():
+    with pytest.raises(ValueError):
+        Settings(model="   ").validate()
+
+
+def test_validate_accepts_valid_model():
+    Settings(model="a-real-model").validate()
+
+
+def test_validate_accepts_missing_model():
+    Settings(model=None).validate()
+
+
+def test_validate_rejects_missing_endpoint_for_http():
+    with pytest.raises(ValueError):
+        Settings(provider="http", endpoint=None).validate()
+
+
+def test_validate_rejects_empty_endpoint_for_http():
+    with pytest.raises(ValueError):
+        Settings(provider="http", endpoint="").validate()
+
+
+def test_validate_rejects_whitespace_only_endpoint_for_http():
+    with pytest.raises(ValueError):
+        Settings(provider="http", endpoint="   ").validate()
+
+
+def test_validate_accepts_http_endpoint():
+    Settings(provider="http", endpoint="http://example.test/generate").validate()
+
+
+def test_validate_accepts_https_endpoint():
+    Settings(provider="http", endpoint="https://example.test/generate").validate()
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    ["ftp://example.test", "file:///etc/passwd", "abc://example.test", "example.test"],
+)
+def test_validate_rejects_unsupported_endpoint_scheme(endpoint):
+    with pytest.raises(ValueError):
+        Settings(provider="http", endpoint=endpoint).validate()
+
+
+@pytest.mark.parametrize("timeout", [0, -1])
+def test_validate_rejects_non_positive_timeout(timeout):
+    with pytest.raises(ValueError):
+        Settings(timeout=timeout).validate()
+
+
+def test_validate_rejects_nan_timeout():
+    with pytest.raises(ValueError):
+        Settings(timeout=float("nan")).validate()
+
+
+def test_validate_rejects_positive_infinity_timeout():
+    with pytest.raises(ValueError):
+        Settings(timeout=float("inf")).validate()
+
+
+def test_validate_rejects_negative_infinity_timeout():
+    with pytest.raises(ValueError):
+        Settings(timeout=float("-inf")).validate()
+
+
+def test_validate_accepts_positive_finite_timeout():
+    Settings(timeout=15.5).validate()
+
+
+def test_validate_error_does_not_leak_api_key():
+    settings = Settings(provider="something", api_key="super-secret-value")
+
+    with pytest.raises(ValueError) as exc_info:
+        settings.validate()
+
+    assert "super-secret-value" not in str(exc_info.value)
+
+
+def test_validate_does_not_perform_network_access(monkeypatch):
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("Settings.validate() must not perform network access")
+
+    monkeypatch.setattr("socket.socket.connect", fail_if_called)
+
+    Settings(provider="http", endpoint="https://example.test/generate").validate()

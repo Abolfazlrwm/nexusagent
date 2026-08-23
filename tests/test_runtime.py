@@ -1,3 +1,5 @@
+import pytest
+
 from nexusagent.agent import Agent, AgentResult
 from nexusagent.config import Settings
 from nexusagent.http_provider import HttpProvider
@@ -80,3 +82,35 @@ def test_runtime_delegates_to_agent():
 
     assert calls["input_text"] == "hello"
     assert result.output == "recorded"
+
+
+def test_create_runtime_rejects_invalid_configuration():
+    settings = Settings(provider="something-unsupported")
+
+    with pytest.raises(ValueError):
+        create_runtime(settings)
+
+
+def test_create_runtime_rejects_http_without_endpoint():
+    settings = Settings(provider="http", endpoint=None)
+
+    with pytest.raises(ValueError):
+        create_runtime(settings)
+
+
+def test_create_runtime_accepts_valid_configuration():
+    settings = Settings(provider="http", endpoint="https://example.test/generate")
+
+    runtime = create_runtime(settings)
+
+    assert isinstance(runtime, Runtime)
+
+
+def test_create_runtime_does_not_perform_network_access(monkeypatch):
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("create_runtime() must not perform network access")
+
+    monkeypatch.setattr("socket.socket.connect", fail_if_called)
+
+    settings = Settings(provider="http", endpoint="https://example.test/generate")
+    create_runtime(settings)
