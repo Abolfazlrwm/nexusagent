@@ -101,6 +101,62 @@ def test_http_provider_missing_output_field_raises(mock_urlopen):
         provider.generate("hi")
 
 
+def make_raw_response(raw: bytes) -> MagicMock:
+    response = MagicMock()
+    response.read.return_value = raw
+    response.__enter__.return_value = response
+    response.__exit__.return_value = False
+    return response
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        b'[{"output": "hello"}]',
+        b'"hello"',
+        b"123",
+        b"true",
+    ],
+)
+@patch("nexusagent.http_provider.urllib.request.urlopen")
+def test_http_provider_non_object_response_raises(mock_urlopen, raw):
+    mock_urlopen.return_value = make_raw_response(raw)
+    provider = HttpProvider(ProviderConfig(endpoint="https://example.test/generate"))
+
+    with pytest.raises(RuntimeError):
+        provider.generate("hi")
+
+
+@pytest.mark.parametrize("output_value", [None, 123, ["hello"]])
+@patch("nexusagent.http_provider.urllib.request.urlopen")
+def test_http_provider_non_string_output_raises(mock_urlopen, output_value):
+    mock_urlopen.return_value = make_response({"output": output_value})
+    provider = HttpProvider(ProviderConfig(endpoint="https://example.test/generate"))
+
+    with pytest.raises(RuntimeError):
+        provider.generate("hi")
+
+
+@pytest.mark.parametrize("output_value", ["", "   ", "\n", "\t"])
+@patch("nexusagent.http_provider.urllib.request.urlopen")
+def test_http_provider_empty_output_raises(mock_urlopen, output_value):
+    mock_urlopen.return_value = make_response({"output": output_value})
+    provider = HttpProvider(ProviderConfig(endpoint="https://example.test/generate"))
+
+    with pytest.raises(RuntimeError):
+        provider.generate("hi")
+
+
+@patch("nexusagent.http_provider.urllib.request.urlopen")
+def test_http_provider_preserves_surrounding_whitespace_in_output(mock_urlopen):
+    mock_urlopen.return_value = make_response({"output": " hello "})
+    provider = HttpProvider(ProviderConfig(endpoint="https://example.test/generate"))
+
+    result = provider.generate("hi")
+
+    assert result == " hello "
+
+
 @patch("nexusagent.http_provider.urllib.request.urlopen")
 def test_http_provider_http_error_raises_clean_exception(mock_urlopen):
     mock_urlopen.side_effect = urllib.error.HTTPError(
@@ -109,6 +165,18 @@ def test_http_provider_http_error_raises_clean_exception(mock_urlopen):
     provider = HttpProvider(ProviderConfig(endpoint="https://example.test/generate"))
 
     with pytest.raises(RuntimeError):
+        provider.generate("hi")
+
+
+@pytest.mark.parametrize("status", [400, 401, 403, 404, 429, 500, 502, 503, 504])
+@patch("nexusagent.http_provider.urllib.request.urlopen")
+def test_http_provider_http_status_errors_raise_clean_exception(mock_urlopen, status):
+    mock_urlopen.side_effect = urllib.error.HTTPError(
+        "https://example.test/generate", status, "error", None, None
+    )
+    provider = HttpProvider(ProviderConfig(endpoint="https://example.test/generate"))
+
+    with pytest.raises(RuntimeError, match=str(status)):
         provider.generate("hi")
 
 
@@ -137,6 +205,31 @@ def test_http_provider_missing_endpoint_raises():
         provider.generate("hi")
 
 
+@pytest.mark.parametrize("timeout", [0, -1])
+def test_http_provider_invalid_timeout_raises(timeout):
+    provider = HttpProvider(
+        ProviderConfig(endpoint="https://example.test/generate", timeout=timeout)
+    )
+
+    with pytest.raises(ValueError):
+        provider.generate("hi")
+
+
+@pytest.mark.parametrize("timeout", [0, -1])
+def test_http_provider_invalid_timeout_does_not_perform_network_access(monkeypatch, timeout):
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("invalid timeout must not trigger a network request")
+
+    monkeypatch.setattr("nexusagent.http_provider.urllib.request.urlopen", fail_if_called)
+
+    provider = HttpProvider(
+        ProviderConfig(endpoint="https://example.test/generate", timeout=timeout)
+    )
+
+    with pytest.raises(ValueError):
+        provider.generate("hi")
+
+
 @patch("nexusagent.http_provider.urllib.request.urlopen")
 def test_http_provider_error_does_not_leak_api_key(mock_urlopen):
     mock_urlopen.side_effect = urllib.error.URLError("connection refused")
@@ -147,6 +240,20 @@ def test_http_provider_error_does_not_leak_api_key(mock_urlopen):
         provider.generate("hi")
 
     assert "super-secret" not in str(exc_info.value)
+
+
+@patch("nexusagent.http_provider.urllib.request.urlopen")
+def test_http_provider_http_error_does_not_leak_api_key(mock_urlopen):
+    mock_urlopen.side_effect = urllib.error.HTTPError(
+        "https://example.test/generate", 401, "Unauthorized", None, None
+    )
+    config = ProviderConfig(endpoint="https://example.test/generate", api_key="super-secret-key")
+    provider = HttpProvider(config)
+
+    with pytest.raises(RuntimeError) as exc_info:
+        provider.generate("hi")
+
+    assert "super-secret-key" not in str(exc_info.value)
 
 
 def test_http_provider_repr_does_not_leak_api_key():

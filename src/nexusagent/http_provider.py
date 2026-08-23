@@ -15,6 +15,9 @@ class HttpProvider(Provider):
         if not self.config.endpoint:
             raise ValueError("HttpProvider requires a configured endpoint")
 
+        if self.config.timeout <= 0:
+            raise ValueError("HttpProvider requires a positive timeout")
+
         body = json.dumps({"model": self.config.model, "input": prompt}).encode("utf-8")
 
         headers = {"Content-Type": "application/json"}
@@ -40,7 +43,17 @@ class HttpProvider(Provider):
         except json.JSONDecodeError:
             raise RuntimeError("HTTP response was not valid JSON") from None
 
+        if not isinstance(payload, dict):
+            raise RuntimeError("HTTP response must be a JSON object")  # noqa: TRY004
+
         if "output" not in payload:
             raise RuntimeError("HTTP response is missing the 'output' field")
 
-        return payload["output"]
+        output = payload["output"]
+        if not isinstance(output, str):
+            raise RuntimeError("HTTP response 'output' field must be a string")  # noqa: TRY004
+
+        if not output.strip():
+            raise RuntimeError("HTTP response 'output' field must not be empty")
+
+        return output
