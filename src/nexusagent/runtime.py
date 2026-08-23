@@ -18,7 +18,12 @@ def create_runtime(settings: Settings | None = None) -> Runtime:
     if settings is None:
         settings = Settings.from_env()
 
-    config = ProviderConfig(model=settings.model, api_key=settings.api_key)
+    config = ProviderConfig(
+        model=settings.model,
+        api_key=settings.api_key,
+        endpoint=settings.endpoint,
+        timeout=settings.timeout,
+    )
     provider = create_provider(settings.provider, config)
     agent = Agent(provider)
     return Runtime(agent)

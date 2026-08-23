@@ -19,6 +19,8 @@ class Settings:
     model: str | None = None
     api_key: str | None = None
     provider: str = "fake"
+    endpoint: str | None = None
+    timeout: float = 30.0
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -29,6 +31,8 @@ class Settings:
             model=os.getenv("NEXUS_MODEL"),
             api_key=os.getenv("NEXUS_API_KEY"),
             provider=os.getenv("NEXUS_PROVIDER", "fake"),
+            endpoint=os.getenv("NEXUS_ENDPOINT"),
+            timeout=float(os.getenv("NEXUS_TIMEOUT", "30.0")),
         )
 
     def __repr__(self) -> str:
@@ -36,5 +40,6 @@ class Settings:
         return (
             f"Settings(env={self.env!r}, log_level={self.log_level!r}, "
             f"model={self.model!r}, api_key={api_key_display}, "
-            f"provider={self.provider!r})"
+            f"provider={self.provider!r}, endpoint={self.endpoint!r}, "
+            f"timeout={self.timeout!r})"
         )

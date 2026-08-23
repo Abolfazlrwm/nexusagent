@@ -1,6 +1,7 @@
 import pytest
 
 from nexusagent.factory import create_provider
+from nexusagent.http_provider import HttpProvider
 from nexusagent.provider import Provider, ProviderConfig
 from nexusagent.providers import FakeProvider
 
@@ -33,3 +34,9 @@ def test_create_provider_passes_config_to_provider():
     provider = create_provider("fake", config)
 
     assert provider.config is config
+
+
+def test_create_provider_http_returns_http_provider():
+    provider = create_provider("http", ProviderConfig(endpoint="https://example.test"))
+
+    assert isinstance(provider, HttpProvider)

@@ -9,6 +9,8 @@ def test_defaults_with_no_environment_variables(monkeypatch):
     monkeypatch.delenv("NEXUS_MODEL", raising=False)
     monkeypatch.delenv("NEXUS_API_KEY", raising=False)
     monkeypatch.delenv("NEXUS_PROVIDER", raising=False)
+    monkeypatch.delenv("NEXUS_ENDPOINT", raising=False)
+    monkeypatch.delenv("NEXUS_TIMEOUT", raising=False)
 
     settings = Settings.from_env()
 
@@ -17,6 +19,8 @@ def test_defaults_with_no_environment_variables(monkeypatch):
     assert settings.model is None
     assert settings.api_key is None
     assert settings.provider == "fake"
+    assert settings.endpoint is None
+    assert settings.timeout == 30.0
 
 
 def test_environment_override(monkeypatch):
@@ -65,6 +69,22 @@ def test_provider_configured_through_environment(monkeypatch):
     settings = Settings.from_env()
 
     assert settings.provider == "openai"
+
+
+def test_endpoint_configured_through_environment(monkeypatch):
+    monkeypatch.setenv("NEXUS_ENDPOINT", "https://example.test/generate")
+
+    settings = Settings.from_env()
+
+    assert settings.endpoint == "https://example.test/generate"
+
+
+def test_timeout_configured_through_environment(monkeypatch):
+    monkeypatch.setenv("NEXUS_TIMEOUT", "5")
+
+    settings = Settings.from_env()
+
+    assert settings.timeout == 5.0
 
 
 def test_settings_is_immutable():

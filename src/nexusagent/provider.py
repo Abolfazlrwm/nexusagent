@@ -8,10 +8,15 @@ from dataclasses import dataclass
 class ProviderConfig:
     model: str | None = None
     api_key: str | None = None
+    endpoint: str | None = None
+    timeout: float = 30.0
 
     def __repr__(self) -> str:
         api_key_display = "set" if self.api_key else "None"
-        return f"ProviderConfig(model={self.model!r}, api_key={api_key_display})"
+        return (
+            f"ProviderConfig(model={self.model!r}, api_key={api_key_display}, "
+            f"endpoint={self.endpoint!r}, timeout={self.timeout!r})"
+        )
 
 
 class Provider(ABC):

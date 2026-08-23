@@ -1,5 +1,6 @@
 from nexusagent.agent import Agent, AgentResult
 from nexusagent.config import Settings
+from nexusagent.http_provider import HttpProvider
 from nexusagent.providers import FakeProvider
 from nexusagent.runtime import Runtime, create_runtime
 
@@ -49,6 +50,21 @@ def test_runtime_wires_settings_into_provider_config():
     config = runtime.agent.provider.config
     assert config.model == "fake-model"
     assert config.api_key == "secret"
+
+
+def test_runtime_wires_endpoint_and_timeout_into_http_provider():
+    settings = Settings(
+        provider="http",
+        endpoint="https://example.test/generate",
+        timeout=10,
+    )
+
+    runtime = create_runtime(settings)
+
+    assert isinstance(runtime.agent.provider, HttpProvider)
+    config = runtime.agent.provider.config
+    assert config.endpoint == "https://example.test/generate"
+    assert config.timeout == 10
 
 
 def test_runtime_delegates_to_agent():

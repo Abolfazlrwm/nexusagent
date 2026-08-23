@@ -2,7 +2,9 @@ import os
 import subprocess
 import sys
 
+from nexusagent.factory import create_provider
 from nexusagent.main import main
+from nexusagent.provider import ProviderConfig
 
 
 def run_cli(*args: str, env: dict | None = None) -> subprocess.CompletedProcess:
@@ -93,3 +95,18 @@ def test_cli_does_not_leak_api_key():
 
     assert "super-secret-value" not in result.stdout
     assert "super-secret-value" not in result.stderr
+
+
+def test_cli_help_does_not_perform_network_access():
+    result = run_cli("--help")
+
+    assert result.returncode == 0
+
+
+def test_cli_selecting_http_provider_does_not_perform_network_access(monkeypatch):
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("selecting http provider must not connect until generate() runs")
+
+    monkeypatch.setattr("nexusagent.http_provider.urllib.request.urlopen", fail_if_called)
+
+    create_provider("http", ProviderConfig(endpoint="https://example.test"))
