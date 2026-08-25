@@ -114,3 +114,34 @@ def test_create_runtime_does_not_perform_network_access(monkeypatch):
 
     settings = Settings(provider="http", endpoint="https://example.test/generate")
     create_runtime(settings)
+
+
+def test_create_runtime_does_not_access_filesystem(monkeypatch):
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("create_runtime() must not access the filesystem")
+
+    monkeypatch.setattr("builtins.open", fail_if_called)
+
+    settings = Settings(provider="http", endpoint="https://example.test/generate")
+    create_runtime(settings)
+
+
+def test_runtime_run_does_not_leak_api_key_on_provider_failure(monkeypatch):
+    import urllib.error
+
+    def fail(*args, **kwargs):
+        raise urllib.error.URLError("connection refused")
+
+    monkeypatch.setattr("nexusagent.http_provider.urllib.request.urlopen", fail)
+
+    settings = Settings(
+        provider="http",
+        endpoint="https://example.test/generate",
+        api_key="super-secret-value",
+    )
+    runtime = create_runtime(settings)
+
+    result = runtime.run("hello")
+
+    assert result.success is False
+    assert "super-secret-value" not in result.output

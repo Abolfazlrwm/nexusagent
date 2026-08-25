@@ -44,6 +44,16 @@ def test_fake_provider_does_not_perform_network_calls(monkeypatch):
     provider.generate("hello")
 
 
+def test_fake_provider_does_not_access_filesystem(monkeypatch):
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("FakeProvider.generate must not access the filesystem")
+
+    monkeypatch.setattr("builtins.open", fail_if_called)
+
+    provider = FakeProvider()
+    provider.generate("hello")
+
+
 def test_fake_provider_accepts_provider_config():
     config = ProviderConfig(model="fake-model", api_key=None)
 

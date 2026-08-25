@@ -219,3 +219,12 @@ def test_validate_does_not_perform_network_access(monkeypatch):
     monkeypatch.setattr("socket.socket.connect", fail_if_called)
 
     Settings(provider="http", endpoint="https://example.test/generate").validate()
+
+
+def test_from_env_does_not_perform_network_access(monkeypatch):
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("Settings.from_env() must not perform network access")
+
+    monkeypatch.setattr("socket.socket.connect", fail_if_called)
+
+    Settings.from_env()

@@ -40,3 +40,21 @@ def test_create_provider_http_returns_http_provider():
     provider = create_provider("http", ProviderConfig(endpoint="https://example.test"))
 
     assert isinstance(provider, HttpProvider)
+
+
+def test_create_provider_does_not_perform_network_access(monkeypatch):
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("create_provider() must not perform network access")
+
+    monkeypatch.setattr("socket.socket.connect", fail_if_called)
+
+    create_provider("http", ProviderConfig(endpoint="https://example.test"))
+
+
+def test_create_provider_does_not_access_filesystem(monkeypatch):
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("create_provider() must not access the filesystem")
+
+    monkeypatch.setattr("builtins.open", fail_if_called)
+
+    create_provider("http", ProviderConfig(endpoint="https://example.test"))

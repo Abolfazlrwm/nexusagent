@@ -35,6 +35,12 @@ def test_cli_with_valid_input_prints_fake_provider_output():
     assert result.stdout.strip() == "fake response: Hello NexusAgent"
 
 
+def test_cli_with_valid_input_stderr_is_empty():
+    result = run_cli("Hello NexusAgent")
+
+    assert result.stderr == ""
+
+
 def test_cli_with_explicit_provider_option():
     result = run_cli("--provider", "fake", "Hello NexusAgent")
 
@@ -235,3 +241,60 @@ def test_cli_real_provider_request_failure_does_not_leak_api_key_via_subprocess(
 
     assert "super-secret-value" not in result.stdout
     assert "super-secret-value" not in result.stderr
+
+
+def test_cli_real_provider_request_failure_stdout_does_not_contain_error():
+    result = run_cli("--provider", "http", "Hello", env={"NEXUS_ENDPOINT": "http://127.0.0.1:1"})
+
+    assert result.stdout == ""
+
+
+def test_cli_http_response_validation_failure_exits_nonzero(monkeypatch):
+    class InvalidJsonResponse:
+        def read(self):
+            return b"not valid json"
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    def fake_urlopen(*args, **kwargs):
+        return InvalidJsonResponse()
+
+    monkeypatch.setattr("nexusagent.http_provider.urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr(sys, "argv", ["nexusagent", "--provider", "http", "Hello"])
+    monkeypatch.setenv("NEXUS_ENDPOINT", "https://example.test/generate")
+
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+
+    assert exc_info.value.code != 0
+
+
+def test_cli_http_response_validation_failure_prints_clean_error(monkeypatch, capsys):
+    class InvalidJsonResponse:
+        def read(self):
+            return b"not valid json"
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    def fake_urlopen(*args, **kwargs):
+        return InvalidJsonResponse()
+
+    monkeypatch.setattr("nexusagent.http_provider.urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr(sys, "argv", ["nexusagent", "--provider", "http", "Hello"])
+    monkeypatch.setenv("NEXUS_ENDPOINT", "https://example.test/generate")
+
+    with pytest.raises(SystemExit):
+        main()
+
+    captured = capsys.readouterr()
+    assert "Traceback" not in captured.err
+    assert captured.err.strip() != ""
+    assert captured.out == ""
