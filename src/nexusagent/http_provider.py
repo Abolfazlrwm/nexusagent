@@ -4,7 +4,13 @@ import json
 import urllib.error
 import urllib.request
 
-from nexusagent.provider import Provider, ProviderConfig
+from nexusagent.provider import (
+    Provider,
+    ProviderConfig,
+    ProviderConfigurationError,
+    ProviderRequestError,
+    ProviderResponseError,
+)
 
 
 class HttpProvider(Provider):
@@ -13,10 +19,10 @@ class HttpProvider(Provider):
 
     def generate(self, prompt: str) -> str:
         if not self.config.endpoint:
-            raise ValueError("HttpProvider requires a configured endpoint")
+            raise ProviderConfigurationError("HttpProvider requires a configured endpoint")
 
         if self.config.timeout <= 0:
-            raise ValueError("HttpProvider requires a positive timeout")
+            raise ProviderConfigurationError("HttpProvider requires a positive timeout")
 
         body = json.dumps({"model": self.config.model, "input": prompt}).encode("utf-8")
 
@@ -32,28 +38,28 @@ class HttpProvider(Provider):
             with urllib.request.urlopen(request, timeout=self.config.timeout) as response:
                 raw = response.read()
         except urllib.error.HTTPError as exc:
-            raise RuntimeError(f"HTTP request failed with status {exc.code}") from None
+            raise ProviderRequestError(f"HTTP request failed with status {exc.code}") from None
         except urllib.error.URLError as exc:
-            raise RuntimeError(f"HTTP request failed: {exc.reason}") from None
+            raise ProviderRequestError(f"HTTP request failed: {exc.reason}") from None
         except TimeoutError:
-            raise RuntimeError("HTTP request timed out") from None
+            raise ProviderRequestError("HTTP request timed out") from None
 
         try:
             payload = json.loads(raw)
         except json.JSONDecodeError:
-            raise RuntimeError("HTTP response was not valid JSON") from None
+            raise ProviderResponseError("HTTP response was not valid JSON") from None
 
         if not isinstance(payload, dict):
-            raise RuntimeError("HTTP response must be a JSON object")  # noqa: TRY004
+            raise ProviderResponseError("HTTP response must be a JSON object")
 
         if "output" not in payload:
-            raise RuntimeError("HTTP response is missing the 'output' field")
+            raise ProviderResponseError("HTTP response is missing the 'output' field")
 
         output = payload["output"]
         if not isinstance(output, str):
-            raise RuntimeError("HTTP response 'output' field must be a string")  # noqa: TRY004
+            raise ProviderResponseError("HTTP response 'output' field must be a string")
 
         if not output.strip():
-            raise RuntimeError("HTTP response 'output' field must not be empty")
+            raise ProviderResponseError("HTTP response 'output' field must not be empty")
 
         return output

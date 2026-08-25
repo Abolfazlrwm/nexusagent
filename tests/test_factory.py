@@ -2,7 +2,7 @@ import pytest
 
 from nexusagent.factory import create_provider
 from nexusagent.http_provider import HttpProvider
-from nexusagent.provider import Provider, ProviderConfig
+from nexusagent.provider import Provider, ProviderConfig, ProviderConfigurationError
 from nexusagent.providers import FakeProvider
 
 
@@ -18,13 +18,13 @@ def test_create_provider_returns_a_provider():
     assert isinstance(provider, Provider)
 
 
-def test_create_provider_unsupported_name_raises_value_error():
-    with pytest.raises(ValueError):
+def test_create_provider_unsupported_name_raises_provider_configuration_error():
+    with pytest.raises(ProviderConfigurationError):
         create_provider("unknown")
 
 
 def test_create_provider_error_message_identifies_provider():
-    with pytest.raises(ValueError, match="unknown"):
+    with pytest.raises(ProviderConfigurationError, match="unknown"):
         create_provider("unknown")
 
 

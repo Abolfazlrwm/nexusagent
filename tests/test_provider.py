@@ -1,6 +1,13 @@
 import pytest
 
-from nexusagent.provider import Provider, ProviderConfig
+from nexusagent.provider import (
+    Provider,
+    ProviderConfig,
+    ProviderConfigurationError,
+    ProviderError,
+    ProviderRequestError,
+    ProviderResponseError,
+)
 
 
 class EchoProvider(Provider):
@@ -61,3 +68,34 @@ def test_provider_config_repr_does_not_expose_api_key():
 
     assert "super-secret" not in repr(config)
     assert "set" in repr(config)
+
+
+def test_provider_error_inherits_from_exception():
+    assert issubclass(ProviderError, Exception)
+
+
+def test_provider_configuration_error_inherits_from_provider_error():
+    assert issubclass(ProviderConfigurationError, ProviderError)
+
+
+def test_provider_request_error_inherits_from_provider_error():
+    assert issubclass(ProviderRequestError, ProviderError)
+
+
+def test_provider_response_error_inherits_from_provider_error():
+    assert issubclass(ProviderResponseError, ProviderError)
+
+
+def test_provider_configuration_error_can_be_caught_as_provider_error():
+    with pytest.raises(ProviderError):
+        raise ProviderConfigurationError("bad config")
+
+
+def test_provider_request_error_can_be_caught_as_provider_error():
+    with pytest.raises(ProviderError):
+        raise ProviderRequestError("request failed")
+
+
+def test_provider_response_error_can_be_caught_as_provider_error():
+    with pytest.raises(ProviderError):
+        raise ProviderResponseError("bad response")

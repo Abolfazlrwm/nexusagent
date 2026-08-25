@@ -2,6 +2,8 @@ import os
 import subprocess
 import sys
 
+import pytest
+
 from nexusagent.factory import create_provider
 from nexusagent.main import main
 from nexusagent.provider import ProviderConfig
@@ -137,6 +139,98 @@ def test_cli_configuration_error_does_not_leak_api_key():
         "http",
         "Hello",
         env={"NEXUS_ENDPOINT": "", "NEXUS_API_KEY": "super-secret-value"},
+    )
+
+    assert "super-secret-value" not in result.stdout
+    assert "super-secret-value" not in result.stderr
+
+
+def test_cli_provider_request_failure_exits_nonzero(monkeypatch, capsys):
+    import urllib.error
+
+    def fail(*args, **kwargs):
+        raise urllib.error.URLError("connection refused")
+
+    monkeypatch.setattr("nexusagent.http_provider.urllib.request.urlopen", fail)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["nexusagent", "--provider", "http", "Hello"],
+    )
+    monkeypatch.setenv("NEXUS_ENDPOINT", "https://example.test/generate")
+
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+
+    assert exc_info.value.code != 0
+
+
+def test_cli_provider_request_failure_prints_clean_error_to_stderr(monkeypatch, capsys):
+    import urllib.error
+
+    def fail(*args, **kwargs):
+        raise urllib.error.URLError("connection refused")
+
+    monkeypatch.setattr("nexusagent.http_provider.urllib.request.urlopen", fail)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["nexusagent", "--provider", "http", "Hello"],
+    )
+    monkeypatch.setenv("NEXUS_ENDPOINT", "https://example.test/generate")
+
+    with pytest.raises(SystemExit):
+        main()
+
+    captured = capsys.readouterr()
+    assert "Traceback" not in captured.err
+    assert captured.err.strip() != ""
+
+
+def test_cli_provider_request_failure_does_not_leak_api_key(monkeypatch, capsys):
+    import urllib.error
+
+    def fail(*args, **kwargs):
+        raise urllib.error.URLError("connection refused")
+
+    monkeypatch.setattr("nexusagent.http_provider.urllib.request.urlopen", fail)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["nexusagent", "--provider", "http", "Hello"],
+    )
+    monkeypatch.setenv("NEXUS_ENDPOINT", "https://example.test/generate")
+    monkeypatch.setenv("NEXUS_API_KEY", "super-secret-value")
+
+    with pytest.raises(SystemExit):
+        main()
+
+    captured = capsys.readouterr()
+    assert "super-secret-value" not in captured.out
+    assert "super-secret-value" not in captured.err
+
+
+def test_cli_real_provider_request_failure_exits_nonzero_via_subprocess():
+    # Port 1 is a reserved low port nothing listens on locally, so this
+    # fails fast with "connection refused" without touching the network.
+    result = run_cli("--provider", "http", "Hello", env={"NEXUS_ENDPOINT": "http://127.0.0.1:1"})
+
+    assert result.returncode != 0
+
+
+def test_cli_real_provider_request_failure_prints_clean_error_via_subprocess():
+    result = run_cli("--provider", "http", "Hello", env={"NEXUS_ENDPOINT": "http://127.0.0.1:1"})
+
+    assert "Traceback" not in result.stderr
+    assert result.stderr.strip() != ""
+
+
+def test_cli_real_provider_request_failure_does_not_leak_api_key_via_subprocess():
+    result = run_cli(
+        "--provider",
+        "http",
+        "Hello",
+        env={"NEXUS_ENDPOINT": "http://127.0.0.1:1", "NEXUS_API_KEY": "super-secret-value"},
     )
 
     assert "super-secret-value" not in result.stdout

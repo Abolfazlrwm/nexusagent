@@ -22,3 +22,19 @@ class ProviderConfig:
 class Provider(ABC):
     @abstractmethod
     def generate(self, prompt: str) -> str: ...
+
+
+class ProviderError(Exception):
+    """Base exception for provider-related failures."""
+
+
+class ProviderConfigurationError(ProviderError):
+    """Raised when provider configuration is invalid for a provider."""
+
+
+class ProviderRequestError(ProviderError):
+    """Raised when a provider request fails."""
+
+
+class ProviderResponseError(ProviderError):
+    """Raised when a provider response is invalid."""

@@ -4,6 +4,7 @@ from dataclasses import replace
 
 from nexusagent import create_runtime
 from nexusagent.config import Settings
+from nexusagent.provider import ProviderError
 
 
 def main() -> None:
@@ -18,9 +19,13 @@ def main() -> None:
 
     try:
         runtime = create_runtime(settings)
-    except ValueError as exc:
+    except (ValueError, ProviderError) as exc:
         print(f"nexusagent: error: {exc}", file=sys.stderr)
         sys.exit(1)
 
     result = runtime.run(args.input_text)
+    if not result.success:
+        print(f"nexusagent: error: {result.output}", file=sys.stderr)
+        sys.exit(1)
+
     print(result.output)

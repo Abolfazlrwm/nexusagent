@@ -5,7 +5,13 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from nexusagent.http_provider import HttpProvider
-from nexusagent.provider import Provider, ProviderConfig
+from nexusagent.provider import (
+    Provider,
+    ProviderConfig,
+    ProviderConfigurationError,
+    ProviderRequestError,
+    ProviderResponseError,
+)
 
 
 def make_response(payload: dict) -> MagicMock:
@@ -88,7 +94,7 @@ def test_http_provider_invalid_json_raises(mock_urlopen):
 
     provider = HttpProvider(ProviderConfig(endpoint="https://example.test/generate"))
 
-    with pytest.raises(RuntimeError):
+    with pytest.raises(ProviderResponseError):
         provider.generate("hi")
 
 
@@ -97,7 +103,7 @@ def test_http_provider_missing_output_field_raises(mock_urlopen):
     mock_urlopen.return_value = make_response({"something_else": "value"})
     provider = HttpProvider(ProviderConfig(endpoint="https://example.test/generate"))
 
-    with pytest.raises(RuntimeError):
+    with pytest.raises(ProviderResponseError):
         provider.generate("hi")
 
 
@@ -123,7 +129,7 @@ def test_http_provider_non_object_response_raises(mock_urlopen, raw):
     mock_urlopen.return_value = make_raw_response(raw)
     provider = HttpProvider(ProviderConfig(endpoint="https://example.test/generate"))
 
-    with pytest.raises(RuntimeError):
+    with pytest.raises(ProviderResponseError):
         provider.generate("hi")
 
 
@@ -133,7 +139,7 @@ def test_http_provider_non_string_output_raises(mock_urlopen, output_value):
     mock_urlopen.return_value = make_response({"output": output_value})
     provider = HttpProvider(ProviderConfig(endpoint="https://example.test/generate"))
 
-    with pytest.raises(RuntimeError):
+    with pytest.raises(ProviderResponseError):
         provider.generate("hi")
 
 
@@ -143,7 +149,7 @@ def test_http_provider_empty_output_raises(mock_urlopen, output_value):
     mock_urlopen.return_value = make_response({"output": output_value})
     provider = HttpProvider(ProviderConfig(endpoint="https://example.test/generate"))
 
-    with pytest.raises(RuntimeError):
+    with pytest.raises(ProviderResponseError):
         provider.generate("hi")
 
 
@@ -164,7 +170,7 @@ def test_http_provider_http_error_raises_clean_exception(mock_urlopen):
     )
     provider = HttpProvider(ProviderConfig(endpoint="https://example.test/generate"))
 
-    with pytest.raises(RuntimeError):
+    with pytest.raises(ProviderRequestError):
         provider.generate("hi")
 
 
@@ -176,7 +182,7 @@ def test_http_provider_http_status_errors_raise_clean_exception(mock_urlopen, st
     )
     provider = HttpProvider(ProviderConfig(endpoint="https://example.test/generate"))
 
-    with pytest.raises(RuntimeError, match=str(status)):
+    with pytest.raises(ProviderRequestError, match=str(status)):
         provider.generate("hi")
 
 
@@ -185,7 +191,7 @@ def test_http_provider_network_failure_raises_clean_exception(mock_urlopen):
     mock_urlopen.side_effect = urllib.error.URLError("connection refused")
     provider = HttpProvider(ProviderConfig(endpoint="https://example.test/generate"))
 
-    with pytest.raises(RuntimeError):
+    with pytest.raises(ProviderRequestError):
         provider.generate("hi")
 
 
@@ -194,14 +200,14 @@ def test_http_provider_timeout_raises_clean_exception(mock_urlopen):
     mock_urlopen.side_effect = TimeoutError()
     provider = HttpProvider(ProviderConfig(endpoint="https://example.test/generate"))
 
-    with pytest.raises(RuntimeError):
+    with pytest.raises(ProviderRequestError):
         provider.generate("hi")
 
 
 def test_http_provider_missing_endpoint_raises():
     provider = HttpProvider(ProviderConfig())
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ProviderConfigurationError):
         provider.generate("hi")
 
 
@@ -211,7 +217,7 @@ def test_http_provider_invalid_timeout_raises(timeout):
         ProviderConfig(endpoint="https://example.test/generate", timeout=timeout)
     )
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ProviderConfigurationError):
         provider.generate("hi")
 
 
@@ -226,7 +232,7 @@ def test_http_provider_invalid_timeout_does_not_perform_network_access(monkeypat
         ProviderConfig(endpoint="https://example.test/generate", timeout=timeout)
     )
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ProviderConfigurationError):
         provider.generate("hi")
 
 
@@ -236,7 +242,7 @@ def test_http_provider_error_does_not_leak_api_key(mock_urlopen):
     config = ProviderConfig(endpoint="https://example.test/generate", api_key="super-secret")
     provider = HttpProvider(config)
 
-    with pytest.raises(RuntimeError) as exc_info:
+    with pytest.raises(ProviderRequestError) as exc_info:
         provider.generate("hi")
 
     assert "super-secret" not in str(exc_info.value)
@@ -250,7 +256,7 @@ def test_http_provider_http_error_does_not_leak_api_key(mock_urlopen):
     config = ProviderConfig(endpoint="https://example.test/generate", api_key="super-secret-key")
     provider = HttpProvider(config)
 
-    with pytest.raises(RuntimeError) as exc_info:
+    with pytest.raises(ProviderRequestError) as exc_info:
         provider.generate("hi")
 
     assert "super-secret-key" not in str(exc_info.value)
