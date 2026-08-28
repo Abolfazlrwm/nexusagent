@@ -512,3 +512,159 @@ def test_existing_help_cli_still_works_after_tool_command_added():
     result = run_cli("--help")
 
     assert result.returncode == 0
+
+
+# --- Tool listing CLI (Task 1.27) ---
+
+
+def test_tool_list_exits_zero():
+    result = run_cli("tool", "list")
+
+    assert result.returncode == 0
+
+
+def test_tool_list_contains_echo():
+    result = run_cli("tool", "list")
+
+    assert "echo" in result.stdout.splitlines()
+
+
+def test_tool_list_stderr_is_empty():
+    result = run_cli("tool", "list")
+
+    assert result.stderr == ""
+
+
+def test_tool_list_no_traceback():
+    result = run_cli("tool", "list")
+
+    assert "Traceback" not in result.stdout
+    assert "Traceback" not in result.stderr
+
+
+def test_tool_list_preserves_registry_order(monkeypatch, capsys):
+    from nexusagent.tool import Tool
+    from nexusagent.tool_registry import ToolRegistry
+
+    class EchoTool(Tool):
+        def execute(self, input_data: str) -> str:
+            return input_data
+
+    def fake_build_tool_runtime():
+        from nexusagent.runtime import create_runtime
+        from nexusagent.tool_executor import ToolExecutor
+
+        registry = ToolRegistry()
+        registry.register(EchoTool(name="echo", description="Echo"))
+        registry.register(EchoTool(name="second", description="Second"))
+        registry.register(EchoTool(name="third", description="Third"))
+        return create_runtime(tool_registry=registry, tool_executor=ToolExecutor())
+
+    monkeypatch.setattr("nexusagent.main._build_tool_runtime", fake_build_tool_runtime)
+    monkeypatch.setattr(sys, "argv", ["nexusagent", "tool", "list"])
+
+    main()
+
+    captured = capsys.readouterr()
+    assert captured.out.splitlines() == ["echo", "second", "third"]
+
+
+def test_tool_list_empty_registry_exits_zero_with_empty_output(monkeypatch, capsys):
+    from nexusagent.tool_registry import ToolRegistry
+
+    def fake_build_tool_runtime():
+        from nexusagent.runtime import create_runtime
+        from nexusagent.tool_executor import ToolExecutor
+
+        registry = ToolRegistry()
+        return create_runtime(tool_registry=registry, tool_executor=ToolExecutor())
+
+    monkeypatch.setattr("nexusagent.main._build_tool_runtime", fake_build_tool_runtime)
+    monkeypatch.setattr(sys, "argv", ["nexusagent", "tool", "list"])
+
+    main()
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == ""
+
+
+def test_tool_list_extra_argument_exits_nonzero():
+    result = run_cli("tool", "list", "extra")
+
+    assert result.returncode != 0
+    assert "Traceback" not in result.stderr
+
+
+def test_tool_list_does_not_leak_api_key():
+    result = run_cli("tool", "list", env={"NEXUS_API_KEY": "super-secret-value"})
+
+    assert "super-secret-value" not in result.stdout
+    assert "super-secret-value" not in result.stderr
+
+
+def test_tool_list_does_not_perform_network_access(monkeypatch):
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("tool list must not perform network access")
+
+    monkeypatch.setattr("socket.socket.connect", fail_if_called)
+    monkeypatch.setattr(sys, "argv", ["nexusagent", "tool", "list"])
+
+    main()
+
+
+def test_tool_list_does_not_access_filesystem(monkeypatch):
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("tool list must not access the filesystem")
+
+    monkeypatch.setattr("builtins.open", fail_if_called)
+    monkeypatch.setattr(sys, "argv", ["nexusagent", "tool", "list"])
+
+    main()
+
+
+def test_tool_list_works_without_any_nexus_environment_variables(monkeypatch, capsys):
+    for key in list(os.environ):
+        if key.startswith("NEXUS_"):
+            monkeypatch.delenv(key, raising=False)
+
+    monkeypatch.setattr(sys, "argv", ["nexusagent", "tool", "list"])
+
+    main()
+
+    captured = capsys.readouterr()
+    assert "echo" in captured.out.splitlines()
+
+
+def test_tool_run_echo_still_works_after_list_command_added():
+    result = run_cli("tool", "run", "echo", "hello world")
+
+    assert result.returncode == 0
+    assert result.stdout.strip() == "hello world"
+
+
+def test_existing_agent_cli_still_works_after_list_command_added():
+    result = run_cli("Hello NexusAgent")
+
+    assert result.returncode == 0
+    assert result.stdout.strip() == "fake response: Hello NexusAgent"
+
+
+def test_existing_provider_flag_cli_still_works_after_list_command_added():
+    result = run_cli("--provider", "fake", "Hello NexusAgent")
+
+    assert result.returncode == 0
+
+
+def test_tool_command_without_subcommand_still_fails_cleanly():
+    result = run_cli("tool")
+
+    assert result.returncode != 0
+    assert "Traceback" not in result.stderr
+
+
+def test_tool_unknown_subcommand_still_fails_cleanly():
+    result = run_cli("tool", "unknown")
+
+    assert result.returncode != 0
+    assert "Traceback" not in result.stderr

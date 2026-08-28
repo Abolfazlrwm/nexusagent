@@ -4,6 +4,7 @@ from nexusagent.agent import Agent, AgentResult
 from nexusagent.config import Settings
 from nexusagent.factory import create_provider
 from nexusagent.provider import ProviderConfig
+from nexusagent.tool import Tool
 from nexusagent.tool_executor import ToolExecutor
 from nexusagent.tool_registry import ToolRegistry
 
@@ -24,6 +25,12 @@ class Runtime:
 
     def execute_tool(self, tool_name: str, input_data: str) -> str:
         return self.agent.execute_tool(tool_name, input_data)
+
+    def list_tools(self) -> list[Tool]:
+        if self.tool_registry is None:
+            raise RuntimeError("Runtime requires a ToolRegistry to list tools")
+
+        return self.tool_registry.list_tools()
 
 
 def create_runtime(

@@ -17,14 +17,27 @@ def _build_tool_runtime():
     return create_runtime(tool_registry=registry, tool_executor=executor)
 
 
+def _run_tool_list_command() -> None:
+    runtime = _build_tool_runtime()
+    for tool in runtime.list_tools():
+        print(tool.name)
+
+
 def _run_tool_command(argv: list[str]) -> None:
     parser = argparse.ArgumentParser(prog="nexusagent tool")
     subparsers = parser.add_subparsers(dest="tool_command", required=True)
+
     run_parser = subparsers.add_parser("run", help="run a registered tool")
     run_parser.add_argument("tool_name", help="name of the tool to run")
     run_parser.add_argument("input_data", help="input passed to the tool")
 
+    subparsers.add_parser("list", help="list registered tools")
+
     args = parser.parse_args(argv)
+
+    if args.tool_command == "list":
+        _run_tool_list_command()
+        return
 
     runtime = _build_tool_runtime()
 

@@ -38,6 +38,16 @@ The `http` provider only performs a network request when it actually runs — se
 
 ## Tools
 
+Available tools can be listed from the CLI:
+
+```bash
+python -m nexusagent tool list
+```
+
+```text
+echo
+```
+
 A registered tool can be run directly from the CLI:
 
 ```bash

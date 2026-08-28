@@ -417,3 +417,48 @@ def test_create_runtime_with_tools_works_without_any_nexus_environment_variables
     result = runtime.execute_tool("echo", "hello")
 
     assert result == "hello"
+
+
+# --- Runtime.list_tools() (Task 1.27) ---
+
+
+def test_runtime_list_tools_returns_registered_tools():
+    registry = make_echo_registry()
+    runtime = Runtime(Agent(FakeProvider(), tool_registry=registry), tool_registry=registry)
+
+    tools = runtime.list_tools()
+
+    assert [tool.name for tool in tools] == ["echo"]
+
+
+def test_runtime_list_tools_preserves_registration_order():
+    registry = ToolRegistry()
+    registry.register(EchoTool(name="a", description="A"))
+    registry.register(EchoTool(name="b", description="B"))
+    registry.register(EchoTool(name="c", description="C"))
+    runtime = Runtime(Agent(FakeProvider()), tool_registry=registry)
+
+    tools = runtime.list_tools()
+
+    assert [tool.name for tool in tools] == ["a", "b", "c"]
+
+
+def test_runtime_list_tools_empty_registry_returns_empty_list():
+    registry = ToolRegistry()
+    runtime = Runtime(Agent(FakeProvider()), tool_registry=registry)
+
+    assert runtime.list_tools() == []
+
+
+def test_runtime_list_tools_without_registry_raises_runtime_error():
+    runtime = Runtime(Agent(FakeProvider()))
+
+    with pytest.raises(RuntimeError, match="Runtime requires a ToolRegistry to list tools"):
+        runtime.list_tools()
+
+
+def test_runtime_list_tools_delegates_to_tool_registry_not_internal_state():
+    registry = make_echo_registry()
+    runtime = Runtime(Agent(FakeProvider()), tool_registry=registry)
+
+    assert runtime.list_tools() == registry.list_tools()
