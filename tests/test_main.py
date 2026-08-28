@@ -298,3 +298,217 @@ def test_cli_http_response_validation_failure_prints_clean_error(monkeypatch, ca
     assert "Traceback" not in captured.err
     assert captured.err.strip() != ""
     assert captured.out == ""
+
+
+# --- Tool CLI (Task 1.26) ---
+
+
+def test_tool_run_echo_prints_output_to_stdout():
+    result = run_cli("tool", "run", "echo", "hello world")
+
+    assert result.stdout.strip() == "hello world"
+
+
+def test_tool_run_echo_exits_zero():
+    result = run_cli("tool", "run", "echo", "hello world")
+
+    assert result.returncode == 0
+
+
+def test_tool_run_echo_stderr_is_empty():
+    result = run_cli("tool", "run", "echo", "hello world")
+
+    assert result.stderr == ""
+
+
+def test_tool_run_delegates_through_runtime_execute_tool(monkeypatch):
+    calls = {}
+
+    from nexusagent.runtime import Runtime
+
+    original_execute_tool = Runtime.execute_tool
+
+    def spy_execute_tool(self, tool_name, input_data):
+        calls["tool_name"] = tool_name
+        calls["input_data"] = input_data
+        return original_execute_tool(self, tool_name, input_data)
+
+    monkeypatch.setattr(Runtime, "execute_tool", spy_execute_tool)
+    monkeypatch.setattr(sys, "argv", ["nexusagent", "tool", "run", "echo", "hello"])
+
+    main()
+
+    assert calls == {"tool_name": "echo", "input_data": "hello"}
+
+
+def test_tool_run_missing_tool_exits_nonzero():
+    result = run_cli("tool", "run", "does-not-exist", "hello")
+
+    assert result.returncode != 0
+
+
+def test_tool_run_missing_tool_prints_clean_stderr_no_stdout():
+    result = run_cli("tool", "run", "does-not-exist", "hello")
+
+    assert result.stdout == ""
+    assert "Traceback" not in result.stderr
+    assert result.stderr.strip() != ""
+
+
+def test_tool_run_execution_failure_exits_nonzero_and_clean(monkeypatch):
+    from nexusagent.tool import Tool
+    from nexusagent.tool_registry import ToolRegistry
+
+    class FailingTool(Tool):
+        def execute(self, input_data: str) -> str:
+            raise RuntimeError("tool failed")
+
+    def fake_build_tool_runtime():
+        from nexusagent.runtime import create_runtime
+        from nexusagent.tool_executor import ToolExecutor
+
+        registry = ToolRegistry()
+        registry.register(FailingTool(name="failing", description="Fails"))
+        return create_runtime(tool_registry=registry, tool_executor=ToolExecutor())
+
+    monkeypatch.setattr("nexusagent.main._build_tool_runtime", fake_build_tool_runtime)
+    monkeypatch.setattr(sys, "argv", ["nexusagent", "tool", "run", "failing", "hello"])
+
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+
+    assert exc_info.value.code != 0
+
+
+def test_tool_run_execution_failure_prints_clean_error(monkeypatch, capsys):
+    from nexusagent.tool import Tool
+    from nexusagent.tool_registry import ToolRegistry
+
+    class FailingTool(Tool):
+        def execute(self, input_data: str) -> str:
+            raise RuntimeError("tool failed")
+
+    def fake_build_tool_runtime():
+        from nexusagent.runtime import create_runtime
+        from nexusagent.tool_executor import ToolExecutor
+
+        registry = ToolRegistry()
+        registry.register(FailingTool(name="failing", description="Fails"))
+        return create_runtime(tool_registry=registry, tool_executor=ToolExecutor())
+
+    monkeypatch.setattr("nexusagent.main._build_tool_runtime", fake_build_tool_runtime)
+    monkeypatch.setattr(sys, "argv", ["nexusagent", "tool", "run", "failing", "hello"])
+
+    with pytest.raises(SystemExit):
+        main()
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "Traceback" not in captured.err
+    assert "tool failed" in captured.err
+
+
+def test_tool_run_empty_input_is_rejected():
+    result = run_cli("tool", "run", "echo", "")
+
+    assert result.returncode != 0
+    assert result.stdout == ""
+    assert "Traceback" not in result.stderr
+
+
+def test_tool_run_whitespace_only_input_is_rejected():
+    result = run_cli("tool", "run", "echo", "   ")
+
+    assert result.returncode != 0
+    assert result.stdout == ""
+
+
+def test_tool_subcommand_without_run_exits_nonzero_with_usage_error():
+    result = run_cli("tool")
+
+    assert result.returncode != 0
+    assert "Traceback" not in result.stderr
+
+
+def test_tool_run_without_arguments_exits_nonzero_with_usage_error():
+    result = run_cli("tool", "run")
+
+    assert result.returncode != 0
+    assert "Traceback" not in result.stderr
+
+
+def test_tool_unknown_subcommand_exits_nonzero_with_usage_error():
+    result = run_cli("tool", "unknown", "hello")
+
+    assert result.returncode != 0
+    assert "Traceback" not in result.stderr
+
+
+def test_tool_run_does_not_leak_api_key_on_missing_tool():
+    result = run_cli(
+        "tool", "run", "does-not-exist", "hello", env={"NEXUS_API_KEY": "super-secret-value"}
+    )
+
+    assert "super-secret-value" not in result.stdout
+    assert "super-secret-value" not in result.stderr
+
+
+def test_tool_run_does_not_perform_network_access(monkeypatch):
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("tool run must not perform network access")
+
+    monkeypatch.setattr("socket.socket.connect", fail_if_called)
+    monkeypatch.setattr(sys, "argv", ["nexusagent", "tool", "run", "echo", "hello"])
+
+    main()
+
+
+def test_tool_run_does_not_access_filesystem(monkeypatch):
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("tool run must not access the filesystem")
+
+    monkeypatch.setattr("builtins.open", fail_if_called)
+    monkeypatch.setattr(sys, "argv", ["nexusagent", "tool", "run", "echo", "hello"])
+
+    main()
+
+
+def test_tool_run_works_without_any_nexus_environment_variables(monkeypatch, capsys):
+    for key in list(os.environ):
+        if key.startswith("NEXUS_"):
+            monkeypatch.delenv(key, raising=False)
+
+    monkeypatch.setattr(sys, "argv", ["nexusagent", "tool", "run", "echo", "hello"])
+
+    main()
+
+    captured = capsys.readouterr()
+    assert captured.out.strip() == "hello"
+
+
+def test_tool_run_multiple_calls_do_not_corrupt_each_other():
+    result1 = run_cli("tool", "run", "echo", "first")
+    result2 = run_cli("tool", "run", "echo", "second")
+
+    assert result1.stdout.strip() == "first"
+    assert result2.stdout.strip() == "second"
+
+
+def test_existing_agent_cli_still_works_after_tool_command_added():
+    result = run_cli("Hello NexusAgent")
+
+    assert result.returncode == 0
+    assert result.stdout.strip() == "fake response: Hello NexusAgent"
+
+
+def test_existing_provider_flag_cli_still_works_after_tool_command_added():
+    result = run_cli("--provider", "fake", "Hello NexusAgent")
+
+    assert result.returncode == 0
+    assert result.stdout.strip() == "fake response: Hello NexusAgent"
+
+
+def test_existing_help_cli_still_works_after_tool_command_added():
+    result = run_cli("--help")
+
+    assert result.returncode == 0
