@@ -36,6 +36,20 @@ Relevant environment variables:
 
 The `http` provider only performs a network request when it actually runs — selecting it does not make any request on its own.
 
+## Tools
+
+A registered tool can be run directly from the CLI:
+
+```bash
+python -m nexusagent tool run echo "hello world"
+```
+
+```text
+hello world
+```
+
+Currently the built-in `echo` tool is available, which returns its input unchanged.
+
 ## Development
 
 NexusAgent is being developed incrementally, through small, focused changes.
