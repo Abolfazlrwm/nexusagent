@@ -253,6 +253,19 @@ def test_runtime_execute_tool_preserves_exact_input():
     assert result == "   hello world   "
 
 
+def test_runtime_execute_tool_works_with_second_builtin_tool_without_special_casing():
+    from nexusagent.uppercase_tool import UppercaseTool
+
+    registry = ToolRegistry()
+    registry.register(UppercaseTool())
+    agent = Agent(FakeProvider(), tool_registry=registry, tool_executor=ToolExecutor())
+    runtime = Runtime(agent)
+
+    result = runtime.execute_tool("uppercase", "hello")
+
+    assert result == "HELLO"
+
+
 def test_runtime_execute_tool_delegates_to_agent_not_registry_or_executor_directly():
     calls = {}
 

@@ -46,6 +46,7 @@ python -m nexusagent tool list
 
 ```text
 echo - Returns its input unchanged.
+uppercase - Converts input to uppercase.
 ```
 
 A registered tool can be run directly from the CLI:
@@ -58,7 +59,15 @@ python -m nexusagent tool run echo "hello world"
 hello world
 ```
 
-Currently the built-in `echo` tool is available, which returns its input unchanged.
+```bash
+python -m nexusagent tool run uppercase "hello world"
+```
+
+```text
+HELLO WORLD
+```
+
+Currently the built-in `echo` and `uppercase` tools are available.
 
 ## Development
 

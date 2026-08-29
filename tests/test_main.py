@@ -535,6 +535,33 @@ def test_tool_list_contains_echo_description():
     assert "echo - Returns its input unchanged." in result.stdout.splitlines()
 
 
+def test_tool_list_contains_uppercase():
+    result = run_cli("tool", "list")
+
+    assert "uppercase" in result.stdout
+
+
+def test_tool_list_contains_uppercase_description():
+    result = run_cli("tool", "list")
+
+    assert "uppercase - Converts input to uppercase." in result.stdout.splitlines()
+
+
+def test_tool_run_uppercase_returns_uppercased_input():
+    result = run_cli("tool", "run", "uppercase", "hello world")
+
+    assert result.returncode == 0
+    assert result.stdout.strip() == "HELLO WORLD"
+    assert result.stderr == ""
+
+
+def test_tool_run_echo_still_works_after_uppercase_added():
+    result = run_cli("tool", "run", "echo", "hello world")
+
+    assert result.returncode == 0
+    assert result.stdout.strip() == "hello world"
+
+
 def test_tool_list_stderr_is_empty():
     result = run_cli("tool", "list")
 

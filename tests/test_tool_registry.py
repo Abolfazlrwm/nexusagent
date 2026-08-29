@@ -142,6 +142,22 @@ def test_list_tools_preserves_registration_order():
     assert registry.list_tools() == [tool_a, tool_b, tool_c]
 
 
+def test_registry_can_hold_both_builtin_tools_in_order():
+    from nexusagent.echo_tool import EchoTool as BuiltinEchoTool
+    from nexusagent.uppercase_tool import UppercaseTool
+
+    registry = ToolRegistry()
+    echo_tool = BuiltinEchoTool()
+    uppercase_tool = UppercaseTool()
+
+    registry.register(echo_tool)
+    registry.register(uppercase_tool)
+
+    assert registry.list_tools() == [echo_tool, uppercase_tool]
+    assert registry.get("echo") is echo_tool
+    assert registry.get("uppercase") is uppercase_tool
+
+
 def test_list_tools_returns_defensive_copy():
     registry = ToolRegistry()
     tool = make_echo_tool()

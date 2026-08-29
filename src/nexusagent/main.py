@@ -8,11 +8,13 @@ from nexusagent.echo_tool import EchoTool
 from nexusagent.provider import ProviderError
 from nexusagent.tool_executor import ToolExecutionError, ToolExecutor
 from nexusagent.tool_registry import ToolRegistry
+from nexusagent.uppercase_tool import UppercaseTool
 
 
 def _build_tool_runtime():
     registry = ToolRegistry()
     registry.register(EchoTool())
+    registry.register(UppercaseTool())
     executor = ToolExecutor()
     return create_runtime(tool_registry=registry, tool_executor=executor)
 
