@@ -20,7 +20,7 @@ def _build_tool_runtime():
 def _run_tool_list_command() -> None:
     runtime = _build_tool_runtime()
     for tool in runtime.list_tools():
-        print(tool.name)
+        print(f"{tool.name} - {tool.description}")
 
 
 def _run_tool_command(argv: list[str]) -> None:

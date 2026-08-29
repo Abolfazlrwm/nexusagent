@@ -118,6 +118,17 @@ def test_list_tools_returns_tool_instances():
     assert isinstance(tools[0], Tool)
 
 
+def test_list_tools_exposes_name_and_description():
+    registry = ToolRegistry()
+    tool = make_echo_tool(name="echo", description="Echo input")
+    registry.register(tool)
+
+    listed_tool = registry.list_tools()[0]
+
+    assert listed_tool.name == "echo"
+    assert listed_tool.description == "Echo input"
+
+
 def test_list_tools_preserves_registration_order():
     registry = ToolRegistry()
     tool_a = make_echo_tool("a", "A")

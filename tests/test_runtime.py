@@ -457,6 +457,27 @@ def test_runtime_list_tools_without_registry_raises_runtime_error():
         runtime.list_tools()
 
 
+def test_runtime_list_tools_preserves_descriptions():
+    registry = ToolRegistry()
+    registry.register(EchoTool(name="a", description="Tool A"))
+    registry.register(EchoTool(name="b", description="Tool B"))
+    runtime = Runtime(Agent(FakeProvider()), tool_registry=registry)
+
+    tools = runtime.list_tools()
+
+    assert [tool.description for tool in tools] == ["Tool A", "Tool B"]
+
+
+def test_runtime_list_tools_does_not_execute_tools():
+    registry = ToolRegistry()
+    registry.register(FailingTool(name="failing", description="Fails"))
+    runtime = Runtime(Agent(FakeProvider()), tool_registry=registry)
+
+    tools = runtime.list_tools()
+
+    assert [tool.name for tool in tools] == ["failing"]
+
+
 def test_runtime_list_tools_delegates_to_tool_registry_not_internal_state():
     registry = make_echo_registry()
     runtime = Runtime(Agent(FakeProvider()), tool_registry=registry)

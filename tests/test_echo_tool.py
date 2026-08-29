@@ -21,6 +21,12 @@ def test_echo_tool_has_description():
     assert tool.description.strip() != ""
 
 
+def test_echo_tool_description_is_deterministic_and_specific():
+    tool = EchoTool()
+
+    assert tool.description == "Returns its input unchanged."
+
+
 def test_echo_tool_returns_input_unchanged():
     tool = EchoTool()
 

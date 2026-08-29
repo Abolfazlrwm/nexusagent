@@ -45,7 +45,7 @@ python -m nexusagent tool list
 ```
 
 ```text
-echo
+echo - Returns its input unchanged.
 ```
 
 A registered tool can be run directly from the CLI:
