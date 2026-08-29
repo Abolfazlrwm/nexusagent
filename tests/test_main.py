@@ -562,6 +562,65 @@ def test_tool_run_echo_still_works_after_uppercase_added():
     assert result.stdout.strip() == "hello world"
 
 
+def test_tool_list_contains_calculator():
+    result = run_cli("tool", "list")
+
+    assert "calculator" in result.stdout
+
+
+def test_tool_list_contains_calculator_description():
+    result = run_cli("tool", "list")
+
+    assert "calculator - Performs basic arithmetic operations." in result.stdout.splitlines()
+
+
+def test_tool_run_calculator_addition():
+    result = run_cli("tool", "run", "calculator", "2 + 3")
+
+    assert result.returncode == 0
+    assert result.stdout.strip() == "5"
+    assert result.stderr == ""
+
+
+def test_tool_run_calculator_division_by_zero_fails_cleanly():
+    result = run_cli("tool", "run", "calculator", "10 / 0")
+
+    assert result.returncode != 0
+    assert result.stdout == ""
+    assert "Traceback" not in result.stderr
+    assert result.stderr.strip() != ""
+
+
+def test_tool_run_calculator_invalid_expression_fails_cleanly():
+    result = run_cli("tool", "run", "calculator", "hello")
+
+    assert result.returncode != 0
+    assert result.stdout == ""
+    assert "Traceback" not in result.stderr
+
+
+def test_tool_run_calculator_dangerous_expression_is_rejected():
+    result = run_cli("tool", "run", "calculator", "__import__('os')")
+
+    assert result.returncode != 0
+    assert result.stdout == ""
+    assert "Traceback" not in result.stderr
+
+
+def test_tool_run_echo_still_works_after_calculator_added():
+    result = run_cli("tool", "run", "echo", "hello world")
+
+    assert result.returncode == 0
+    assert result.stdout.strip() == "hello world"
+
+
+def test_tool_run_uppercase_still_works_after_calculator_added():
+    result = run_cli("tool", "run", "uppercase", "hello world")
+
+    assert result.returncode == 0
+    assert result.stdout.strip() == "HELLO WORLD"
+
+
 def test_tool_list_stderr_is_empty():
     result = run_cli("tool", "list")
 

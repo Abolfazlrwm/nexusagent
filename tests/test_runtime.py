@@ -266,6 +266,19 @@ def test_runtime_execute_tool_works_with_second_builtin_tool_without_special_cas
     assert result == "HELLO"
 
 
+def test_runtime_execute_tool_works_with_calculator_builtin_tool():
+    from nexusagent.calculator_tool import CalculatorTool
+
+    registry = ToolRegistry()
+    registry.register(CalculatorTool())
+    agent = Agent(FakeProvider(), tool_registry=registry, tool_executor=ToolExecutor())
+    runtime = Runtime(agent)
+
+    result = runtime.execute_tool("calculator", "2 + 3")
+
+    assert result == "5"
+
+
 def test_runtime_execute_tool_delegates_to_agent_not_registry_or_executor_directly():
     calls = {}
 

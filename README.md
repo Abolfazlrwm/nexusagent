@@ -47,6 +47,7 @@ python -m nexusagent tool list
 ```text
 echo - Returns its input unchanged.
 uppercase - Converts input to uppercase.
+calculator - Performs basic arithmetic operations.
 ```
 
 A registered tool can be run directly from the CLI:
@@ -67,7 +68,15 @@ python -m nexusagent tool run uppercase "hello world"
 HELLO WORLD
 ```
 
-Currently the built-in `echo` and `uppercase` tools are available.
+```bash
+python -m nexusagent tool run calculator "2 + 3"
+```
+
+```text
+5
+```
+
+Currently the built-in `echo`, `uppercase`, and `calculator` tools are available.
 
 ## Development
 
