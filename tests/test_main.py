@@ -517,6 +517,27 @@ def test_existing_help_cli_still_works_after_tool_command_added():
 # --- Tool listing CLI (Task 1.27) ---
 
 
+def test_cli_tool_runtime_construction_delegates_to_runtime_factory(monkeypatch, capsys):
+    calls = {"count": 0}
+
+    import nexusagent.runtime_factory as runtime_factory_module
+
+    original_create_tool_runtime = runtime_factory_module.create_tool_runtime
+
+    def spy_create_tool_runtime():
+        calls["count"] += 1
+        return original_create_tool_runtime()
+
+    monkeypatch.setattr("nexusagent.main.create_tool_runtime", spy_create_tool_runtime)
+    monkeypatch.setattr(sys, "argv", ["nexusagent", "tool", "run", "echo", "hello"])
+
+    main()
+
+    assert calls["count"] == 1
+    captured = capsys.readouterr()
+    assert captured.out.strip() == "hello"
+
+
 def test_tool_list_exits_zero():
     result = run_cli("tool", "list")
 

@@ -5,14 +5,12 @@ from dataclasses import replace
 from nexusagent import create_runtime
 from nexusagent.config import Settings
 from nexusagent.provider import ProviderError
-from nexusagent.tool_executor import ToolExecutionError, ToolExecutor
-from nexusagent.tool_factory import create_tool_registry
+from nexusagent.runtime_factory import create_tool_runtime
+from nexusagent.tool_executor import ToolExecutionError
 
 
 def _build_tool_runtime():
-    registry = create_tool_registry()
-    executor = ToolExecutor()
-    return create_runtime(tool_registry=registry, tool_executor=executor)
+    return create_tool_runtime()
 
 
 def _run_tool_list_command() -> None:
