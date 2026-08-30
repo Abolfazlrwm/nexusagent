@@ -3,20 +3,14 @@ import sys
 from dataclasses import replace
 
 from nexusagent import create_runtime
-from nexusagent.calculator_tool import CalculatorTool
 from nexusagent.config import Settings
-from nexusagent.echo_tool import EchoTool
 from nexusagent.provider import ProviderError
 from nexusagent.tool_executor import ToolExecutionError, ToolExecutor
-from nexusagent.tool_registry import ToolRegistry
-from nexusagent.uppercase_tool import UppercaseTool
+from nexusagent.tool_factory import create_tool_registry
 
 
 def _build_tool_runtime():
-    registry = ToolRegistry()
-    registry.register(EchoTool())
-    registry.register(UppercaseTool())
-    registry.register(CalculatorTool())
+    registry = create_tool_registry()
     executor = ToolExecutor()
     return create_runtime(tool_registry=registry, tool_executor=executor)
 
