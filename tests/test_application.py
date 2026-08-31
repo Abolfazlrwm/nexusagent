@@ -132,6 +132,74 @@ def test_create_application_runtime_does_not_access_filesystem(monkeypatch):
     create_application_runtime()
 
 
+def test_create_application_runtime_delegates_to_create_tool_runtime(monkeypatch):
+    import nexusagent.application as application_module
+
+    calls = []
+    sentinel_runtime = object()
+
+    def spy_create_tool_runtime(settings=None):
+        calls.append(settings)
+        return sentinel_runtime
+
+    monkeypatch.setattr(application_module, "create_tool_runtime", spy_create_tool_runtime)
+
+    settings = Settings(provider="fake")
+    result = create_application_runtime(settings)
+
+    assert len(calls) == 1
+    assert calls[0] is settings
+    assert result is sentinel_runtime
+
+
+def test_create_application_runtime_delegates_with_default_settings(monkeypatch):
+    import nexusagent.application as application_module
+
+    calls = []
+    sentinel_runtime = object()
+
+    def spy_create_tool_runtime(settings=None):
+        calls.append(settings)
+        return sentinel_runtime
+
+    monkeypatch.setattr(application_module, "create_tool_runtime", spy_create_tool_runtime)
+
+    result = create_application_runtime()
+
+    assert calls == [None]
+    assert result is sentinel_runtime
+
+
+def test_create_application_runtime_propagates_custom_model():
+    settings = Settings(provider="fake", model="custom-model")
+
+    runtime = create_application_runtime(settings)
+
+    assert runtime.agent.provider.config.model == "custom-model"
+
+
+def test_create_application_runtime_propagates_custom_api_key_without_leaking():
+    settings = Settings(provider="fake", api_key="super-secret-value")
+
+    runtime = create_application_runtime(settings)
+
+    assert runtime.agent.provider.config.api_key == "super-secret-value"
+    assert "super-secret-value" not in repr(runtime.agent.provider.config)
+
+
+def test_create_application_runtime_propagates_custom_log_level_and_env(monkeypatch):
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("must not perform network access")
+
+    monkeypatch.setattr("socket.socket.connect", fail_if_called)
+
+    settings = Settings(provider="fake", env="production", log_level="DEBUG")
+
+    runtime = create_application_runtime(settings)
+
+    assert runtime.run("hello").success is True
+
+
 def test_create_application_runtime_does_not_leak_api_key(monkeypatch, capsys):
     monkeypatch.setenv("NEXUS_API_KEY", "super-secret-value")
 

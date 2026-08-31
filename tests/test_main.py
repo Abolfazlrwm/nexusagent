@@ -835,3 +835,48 @@ def test_tool_unknown_subcommand_still_fails_cleanly():
 
     assert result.returncode != 0
     assert "Traceback" not in result.stderr
+
+
+def test_main_module_only_imports_application_level_construction_api():
+    import ast
+
+    import nexusagent.main as main_module
+
+    with open(main_module.__file__, encoding="utf-8") as f:
+        source = f.read()
+        tree = ast.parse(source)
+
+    imports = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imports.extend(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            imports.append(node.module)
+
+    # main.py may import ToolExecutionError (an exception type) for error
+    # handling, but must never import construction-level modules directly.
+    forbidden_modules = {
+        "nexusagent.tool_registry",
+        "nexusagent.tool_factory",
+        "nexusagent.runtime_factory",
+        "nexusagent.echo_tool",
+        "nexusagent.uppercase_tool",
+        "nexusagent.calculator_tool",
+        "nexusagent.runtime",
+        "nexusagent.factory",
+    }
+    forbidden_constructions = [
+        "ToolRegistry(",
+        "ToolExecutor(",
+        "EchoTool(",
+        "UppercaseTool(",
+        "CalculatorTool(",
+        "create_tool_registry(",
+        "create_tool_runtime(",
+        "create_runtime(",
+    ]
+
+    assert not (set(imports) & forbidden_modules)
+    for construction in forbidden_constructions:
+        assert construction not in source
+    assert "nexusagent.application" in imports
