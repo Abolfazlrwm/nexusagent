@@ -2,15 +2,14 @@ import argparse
 import sys
 from dataclasses import replace
 
-from nexusagent import create_runtime
+from nexusagent.application import create_application_runtime
 from nexusagent.config import Settings
 from nexusagent.provider import ProviderError
-from nexusagent.runtime_factory import create_tool_runtime
 from nexusagent.tool_executor import ToolExecutionError
 
 
 def _build_tool_runtime():
-    return create_tool_runtime()
+    return create_application_runtime()
 
 
 def _run_tool_list_command() -> None:
@@ -63,7 +62,7 @@ def main() -> None:
         settings = replace(settings, provider=args.provider)
 
     try:
-        runtime = create_runtime(settings)
+        runtime = create_application_runtime(settings)
     except (ValueError, ProviderError) as exc:
         print(f"nexusagent: error: {exc}", file=sys.stderr)
         sys.exit(1)

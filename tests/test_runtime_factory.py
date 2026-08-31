@@ -143,3 +143,15 @@ def test_create_tool_runtime_does_not_leak_api_key(monkeypatch, capsys):
     assert "super-secret-value" not in captured.out
     assert "super-secret-value" not in captured.err
     assert "super-secret-value" not in repr(runtime.agent.provider.config)
+
+
+def test_create_tool_runtime_propagates_settings():
+    from nexusagent.config import Settings
+
+    settings = Settings(provider="fake")
+    runtime = create_tool_runtime(settings)
+
+    result = runtime.run("hello")
+
+    assert result.success is True
+    assert result.output == "fake response: hello"
