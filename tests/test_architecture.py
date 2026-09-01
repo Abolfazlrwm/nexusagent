@@ -167,3 +167,35 @@ def test_main_uses_application_layer_as_runtime_entry_point():
     imports = get_imported_modules(SRC_DIR / "main.py")
 
     assert "nexusagent.application" in imports
+
+
+# --- Rule H — Public package API layer ---
+
+
+def test_init_does_not_depend_on_main():
+    forbidden = {
+        "nexusagent.main",
+    }
+    assert_no_forbidden_imports("__init__.py", forbidden)
+
+
+def test_init_does_not_construct_infrastructure():
+    source = get_source(SRC_DIR / "__init__.py")
+
+    forbidden_constructions = [
+        "ToolRegistry(",
+        "ToolExecutor(",
+        "EchoTool(",
+        "UppercaseTool(",
+        "CalculatorTool(",
+        "create_tool_registry(",
+        "create_tool_runtime(",
+        "create_runtime(",
+        "create_application_runtime(",
+    ]
+
+    for construction in forbidden_constructions:
+        assert construction not in source, (
+            f"__init__.py must not directly construct via {construction!r}; "
+            "it must only re-export public objects"
+        )
