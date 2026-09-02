@@ -1,8 +1,16 @@
 import importlib
 
 import nexusagent
-from nexusagent import Agent, Runtime, Settings, create_application_runtime, create_runtime
+from nexusagent import (
+    Agent,
+    AgentResult,
+    Runtime,
+    Settings,
+    create_application_runtime,
+    create_runtime,
+)
 from nexusagent.agent import Agent as AgentFromModule
+from nexusagent.agent import AgentResult as AgentResultFromModule
 from nexusagent.application import (
     create_application_runtime as create_application_runtime_from_module,
 )
@@ -23,6 +31,10 @@ def test_agent_importable_from_package_root():
     assert Agent is AgentFromModule
 
 
+def test_agent_result_importable_from_package_root():
+    assert AgentResult is AgentResultFromModule
+
+
 def test_settings_importable_from_package_root():
     assert Settings is SettingsFromModule
 
@@ -38,6 +50,7 @@ def test_version_unchanged():
 def test_all_contains_exactly_the_public_api():
     assert set(nexusagent.__all__) == {
         "Agent",
+        "AgentResult",
         "Runtime",
         "Settings",
         "create_application_runtime",

@@ -199,3 +199,9 @@ def test_init_does_not_construct_infrastructure():
             f"__init__.py must not directly construct via {construction!r}; "
             "it must only re-export public objects"
         )
+
+
+def test_init_exposes_agent_result():
+    source = get_source(SRC_DIR / "__init__.py")
+
+    assert "AgentResult" in source, "__init__.py must continue to export AgentResult"
