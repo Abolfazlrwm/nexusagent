@@ -14,6 +14,14 @@ def test_agent_result_holds_output_and_success():
     assert result.success is True
 
 
+def test_agent_result_has_exactly_output_and_success_fields():
+    import dataclasses
+
+    field_names = {f.name for f in dataclasses.fields(AgentResult)}
+
+    assert field_names == {"output", "success"}
+
+
 def test_agent_result_is_immutable():
     result = AgentResult(output="hello", success=True)
 
@@ -25,6 +33,17 @@ def test_agent_accepts_a_provider():
     agent = Agent(FakeProvider())
 
     assert isinstance(agent.provider, FakeProvider)
+
+
+def test_agent_run_uses_the_configured_fake_provider():
+    provider = FakeProvider()
+    agent = Agent(provider)
+
+    result = agent.run("hello")
+
+    assert agent.provider is provider
+    assert result.output == "fake response: hello"
+    assert result.success is True
 
 
 def test_agent_run_returns_agent_result():
@@ -77,6 +96,14 @@ def test_agent_run_raises_on_whitespace_only_input():
 
     with pytest.raises(ValueError):
         agent.run("   ")
+
+
+@pytest.mark.parametrize("invalid_input", [None, 123, 3.14, ["hello"], {"text": "hello"}])
+def test_agent_run_raises_type_error_on_non_string_input(invalid_input):
+    agent = Agent(FakeProvider())
+
+    with pytest.raises(TypeError, match="input_text must be a string"):
+        agent.run(invalid_input)
 
 
 def test_agent_run_returns_unsuccessful_result_on_provider_failure():
