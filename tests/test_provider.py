@@ -1,5 +1,6 @@
 import pytest
 
+from nexusagent.agent import Agent
 from nexusagent.provider import (
     Provider,
     ProviderConfig,
@@ -13,6 +14,10 @@ from nexusagent.provider import (
 class EchoProvider(Provider):
     def generate(self, prompt: str) -> str:
         return f"echo: {prompt}"
+
+
+class IncompleteProvider(Provider):
+    pass
 
 
 def test_concrete_provider_can_be_instantiated():
@@ -34,12 +39,33 @@ def test_provider_cannot_be_instantiated_directly():
         Provider()
 
 
+def test_incomplete_provider_subclass_cannot_be_instantiated():
+    with pytest.raises(TypeError):
+        IncompleteProvider()
+
+
 def test_generate_accepts_a_string_prompt():
     provider = EchoProvider()
 
     result = provider.generate("some prompt")
 
     assert isinstance(result, str)
+
+
+def test_provider_exposes_a_callable_generate_method():
+    provider = EchoProvider()
+
+    assert hasattr(provider, "generate")
+    assert callable(provider.generate)
+
+
+def test_concrete_provider_can_be_used_by_agent():
+    agent = Agent(EchoProvider())
+
+    result = agent.run("hello")
+
+    assert result.success is True
+    assert result.output == "echo: hello"
 
 
 def test_provider_config_stores_model_and_api_key():
