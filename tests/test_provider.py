@@ -20,6 +20,11 @@ class IncompleteProvider(Provider):
     pass
 
 
+class FailingProvider(Provider):
+    def generate(self, prompt: str) -> str:
+        raise RuntimeError("provider failure")
+
+
 def test_concrete_provider_can_be_instantiated():
     provider = EchoProvider()
 
@@ -66,6 +71,22 @@ def test_concrete_provider_can_be_used_by_agent():
 
     assert result.success is True
     assert result.output == "echo: hello"
+
+
+def test_provider_generate_can_raise_a_normal_exception_unmodified():
+    provider = FailingProvider()
+
+    with pytest.raises(RuntimeError, match="provider failure"):
+        provider.generate("hello")
+
+
+def test_concrete_provider_failure_is_converted_by_agent_to_unsuccessful_result():
+    agent = Agent(FailingProvider())
+
+    result = agent.run("hello")
+
+    assert result.success is False
+    assert result.output == "provider error: provider failure"
 
 
 def test_provider_config_stores_model_and_api_key():
