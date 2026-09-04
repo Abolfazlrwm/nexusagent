@@ -3,11 +3,22 @@ import pytest
 from nexusagent.agent import Agent, AgentResult
 from nexusagent.config import Settings
 from nexusagent.http_provider import HttpProvider
+from nexusagent.provider import Provider
 from nexusagent.providers import FakeProvider
 from nexusagent.runtime import Runtime, create_runtime
 from nexusagent.tool import Tool
 from nexusagent.tool_executor import ToolExecutionError, ToolExecutor
 from nexusagent.tool_registry import ToolRegistry
+
+
+class EchoProvider(Provider):
+    def generate(self, prompt: str) -> str:
+        return f"echo: {prompt}"
+
+
+class FailingProvider(Provider):
+    def generate(self, prompt: str) -> str:
+        raise RuntimeError("provider failure")
 
 
 def test_create_runtime_returns_a_runtime():
@@ -85,6 +96,27 @@ def test_runtime_delegates_to_agent():
 
     assert calls["input_text"] == "hello"
     assert result.output == "recorded"
+
+
+def test_runtime_execution_uses_the_injected_provider():
+    provider = EchoProvider()
+    runtime = Runtime(Agent(provider))
+
+    result = runtime.run("hello")
+
+    assert runtime.agent.provider is provider
+    assert result.success is True
+    assert result.output == "echo: hello"
+
+
+def test_runtime_run_returns_unsuccessful_result_when_injected_provider_fails():
+    runtime = Runtime(Agent(FailingProvider()))
+
+    result = runtime.run("hello")
+
+    assert isinstance(result, AgentResult)
+    assert result.success is False
+    assert result.output == "provider error: provider failure"
 
 
 def test_create_runtime_rejects_invalid_configuration():
