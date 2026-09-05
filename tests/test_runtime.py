@@ -85,17 +85,28 @@ def test_runtime_wires_endpoint_and_timeout_into_http_provider():
 
 def test_runtime_delegates_to_agent():
     calls = {}
+    expected_result = AgentResult(output="recorded", success=True)
 
     class RecordingAgent(Agent):
         def run(self, input_text: str) -> AgentResult:
             calls["input_text"] = input_text
-            return AgentResult(output="recorded", success=True)
+            return expected_result
 
     runtime = Runtime(RecordingAgent(FakeProvider()))
     result = runtime.run("hello")
 
     assert calls["input_text"] == "hello"
-    assert result.output == "recorded"
+    assert result is expected_result
+
+
+def test_runtime_run_propagates_agent_input_validation_errors():
+    runtime = Runtime(Agent(FakeProvider()))
+
+    with pytest.raises(ValueError):
+        runtime.run("")
+
+    with pytest.raises(TypeError):
+        runtime.run(123)
 
 
 def test_runtime_execution_uses_the_injected_provider():
