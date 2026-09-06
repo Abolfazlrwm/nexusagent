@@ -65,6 +65,17 @@ def test_create_tool_registry_does_not_share_tool_instances_across_calls():
     assert registry1.get("calculator") is not registry2.get("calculator")
 
 
+def test_create_tool_registry_mutating_one_registry_does_not_affect_another():
+    registry1 = create_tool_registry()
+    registry2 = create_tool_registry()
+
+    registry1.unregister("echo")
+
+    assert [tool.name for tool in registry1.list_tools()] == ["uppercase", "calculator"]
+    assert [tool.name for tool in registry2.list_tools()] == ["echo", "uppercase", "calculator"]
+    assert isinstance(registry2.get("echo"), EchoTool)
+
+
 def test_create_tool_registry_does_not_execute_tools(monkeypatch):
     def fail_if_called(self, input_data):
         raise AssertionError("create_tool_registry() must not execute any tool")
