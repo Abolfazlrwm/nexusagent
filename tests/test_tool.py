@@ -19,6 +19,14 @@ def test_tool_cannot_be_instantiated_directly():
         Tool(name="tool", description="a tool")
 
 
+def test_subclass_without_execute_cannot_be_instantiated():
+    class IncompleteTool(Tool):
+        pass
+
+    with pytest.raises(TypeError):
+        IncompleteTool(name="incomplete", description="missing execute")
+
+
 def test_concrete_tool_can_be_instantiated():
     tool = make_echo_tool()
 
@@ -29,6 +37,12 @@ def test_tool_name_is_available():
     tool = make_echo_tool()
 
     assert tool.name == "echo"
+
+
+def test_tool_name_preserves_surrounding_whitespace():
+    tool = EchoTool(name=" echo ", description="a tool")
+
+    assert tool.name == " echo "
 
 
 def test_tool_description_is_available():
@@ -61,6 +75,17 @@ def test_tool_two_executions_are_independent():
 
     assert result1 == "first"
     assert result2 == "second"
+
+
+def test_tool_execute_exception_is_not_swallowed():
+    class FailingTool(Tool):
+        def execute(self, input_data: str) -> str:
+            raise RuntimeError("boom")
+
+    tool = FailingTool(name="failing", description="Always fails")
+
+    with pytest.raises(RuntimeError, match="boom"):
+        tool.execute("hello")
 
 
 def test_tool_name_must_be_a_string():
