@@ -62,6 +62,16 @@ def test_unregister_removes_tool():
         registry.get("echo")
 
 
+def test_unregister_removes_tool_from_list_tools():
+    registry = ToolRegistry()
+    tool = make_echo_tool()
+    registry.register(tool)
+
+    registry.unregister("echo")
+
+    assert registry.list_tools() == []
+
+
 def test_get_missing_tool_raises_key_error():
     registry = ToolRegistry()
 
@@ -257,6 +267,18 @@ def test_registry_never_executes_tools():
 
     with pytest.raises(KeyError):
         registry.get("boom")
+
+
+def test_get_does_not_mutate_registry_state():
+    registry = ToolRegistry()
+    tool = make_echo_tool()
+    registry.register(tool)
+
+    registry.get("echo")
+    registry.get("echo")
+
+    assert registry.get("echo") is tool
+    assert registry.list_tools() == [tool]
 
 
 def test_registry_does_not_perform_network_access(monkeypatch):
