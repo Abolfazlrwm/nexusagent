@@ -2,6 +2,7 @@ import pytest
 
 from nexusagent.calculator_tool import CalculatorTool
 from nexusagent.tool import Tool
+from nexusagent.tool_executor import ToolExecutionError, ToolExecutor
 
 
 def test_calculator_tool_is_a_tool():
@@ -213,3 +214,35 @@ def test_calculator_tool_works_without_any_nexus_environment_variables(monkeypat
     tool = CalculatorTool()
 
     assert tool.execute("2 + 3") == "5"
+
+
+# --- ToolExecutor compatibility ---
+
+
+def test_calculator_tool_invalid_expression_is_wrapped_by_tool_executor():
+    executor = ToolExecutor()
+    tool = CalculatorTool()
+
+    with pytest.raises(ToolExecutionError) as exc_info:
+        executor.execute(tool, "hello")
+
+    assert isinstance(exc_info.value.__cause__, ValueError)
+
+
+def test_calculator_tool_division_by_zero_is_wrapped_by_tool_executor():
+    executor = ToolExecutor()
+    tool = CalculatorTool()
+
+    with pytest.raises(ToolExecutionError) as exc_info:
+        executor.execute(tool, "10 / 0")
+
+    assert isinstance(exc_info.value.__cause__, ZeroDivisionError)
+
+
+def test_calculator_tool_valid_expression_via_tool_executor():
+    executor = ToolExecutor()
+    tool = CalculatorTool()
+
+    result = executor.execute(tool, "2 + 3")
+
+    assert result == "5"
