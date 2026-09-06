@@ -581,3 +581,47 @@ def test_agent_execute_tool_works_without_any_nexus_environment_variables(monkey
     result = agent.execute_tool("echo", "hello")
 
     assert result == "hello"
+
+
+# R. Result propagation preserves object identity
+
+
+def test_agent_execute_tool_returns_executor_result_by_identity():
+    result_object = object()
+    tool = EchoTool(name="echo", description="Echo input")
+    registry = RecordingRegistry(tool)
+    executor = RecordingExecutor(result=result_object)
+    agent = Agent(FakeProvider(), tool_registry=registry, tool_executor=executor)
+
+    result = agent.execute_tool("echo", "hello")
+
+    assert result is result_object
+
+
+# S. Executor is not called when registry lookup fails
+
+
+def test_agent_execute_tool_does_not_call_executor_when_registry_lookup_fails():
+    class FailingRegistry:
+        def get(self, name):
+            raise KeyError(f"Tool {name!r} is not registered")
+
+    executor = RecordingExecutor(result="unused")
+    agent = Agent(FakeProvider(), tool_registry=FailingRegistry(), tool_executor=executor)
+
+    with pytest.raises(KeyError):
+        agent.execute_tool("unknown", "hello")
+
+    assert executor.received_tool is None
+
+
+# T. Input validation errors from the real ToolExecutor propagate through Agent
+
+
+def test_agent_execute_tool_propagates_value_error_for_empty_input():
+    agent = Agent(
+        FakeProvider(), tool_registry=make_echo_tool_registry(), tool_executor=ToolExecutor()
+    )
+
+    with pytest.raises(ValueError):
+        agent.execute_tool("echo", "")
