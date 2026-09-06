@@ -68,6 +68,23 @@ def test_execute_calls_tool_exactly_once():
     assert tool.call_count == 1
 
 
+def test_execute_forwards_exact_input_to_tool():
+    received = {}
+
+    class RecordingTool(Tool):
+        def execute(self, input_data: str) -> str:
+            received["input_data"] = input_data
+            return "recorded"
+
+    executor = ToolExecutor()
+    tool = RecordingTool(name="recorder", description="Records input")
+
+    result = executor.execute(tool, "  hello world  ")
+
+    assert received["input_data"] == "  hello world  "
+    assert result == "recorded"
+
+
 # --- Input validation ---
 
 
