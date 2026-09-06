@@ -100,6 +100,16 @@ def test_create_tool_runtime_two_calls_do_not_share_tool_instances():
     assert runtime1.tool_registry.get("echo") is not runtime2.tool_registry.get("echo")
 
 
+def test_create_tool_runtime_mutating_one_runtimes_registry_does_not_affect_another():
+    runtime1 = create_tool_runtime()
+    runtime2 = create_tool_runtime()
+
+    runtime1.tool_registry.unregister("echo")
+
+    assert [tool.name for tool in runtime1.list_tools()] == ["uppercase", "calculator"]
+    assert [tool.name for tool in runtime2.list_tools()] == ["echo", "uppercase", "calculator"]
+
+
 def test_create_tool_runtime_does_not_execute_any_tool(monkeypatch):
     from nexusagent.calculator_tool import CalculatorTool
     from nexusagent.echo_tool import EchoTool
