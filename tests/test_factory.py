@@ -50,6 +50,12 @@ def test_create_provider_http_returns_http_provider():
     assert isinstance(provider, HttpProvider)
 
 
+def test_create_provider_does_not_validate_http_config_contents():
+    provider = create_provider("http", ProviderConfig())
+
+    assert isinstance(provider, HttpProvider)
+
+
 def test_create_provider_does_not_perform_network_access(monkeypatch):
     def fail_if_called(*args, **kwargs):
         raise AssertionError("create_provider() must not perform network access")
