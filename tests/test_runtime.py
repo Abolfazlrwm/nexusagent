@@ -86,6 +86,29 @@ def test_runtime_wires_endpoint_and_timeout_into_http_provider():
     assert config.timeout == 10
 
 
+def test_create_runtime_delegates_provider_construction_to_factory(monkeypatch):
+    import nexusagent.runtime as runtime_module
+
+    calls = []
+    sentinel_provider = object()
+
+    def spy_create_provider(name, config):
+        calls.append((name, config))
+        return sentinel_provider
+
+    monkeypatch.setattr(runtime_module, "create_provider", spy_create_provider)
+
+    settings = Settings(provider="fake", model="spy-model", api_key="spy-key")
+    runtime = create_runtime(settings)
+
+    assert len(calls) == 1
+    name, config = calls[0]
+    assert name == "fake"
+    assert config.model == "spy-model"
+    assert config.api_key == "spy-key"
+    assert runtime.agent.provider is sentinel_provider
+
+
 def test_runtime_delegates_to_agent():
     calls = {}
     expected_result = AgentResult(output="recorded", success=True)
