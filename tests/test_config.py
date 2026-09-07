@@ -3,6 +3,18 @@ import pytest
 from nexusagent.config import Settings
 
 
+def test_settings_direct_construction_defaults():
+    settings = Settings()
+
+    assert settings.env == "development"
+    assert settings.log_level == "INFO"
+    assert settings.model is None
+    assert settings.api_key is None
+    assert settings.provider == "fake"
+    assert settings.endpoint is None
+    assert settings.timeout == 30.0
+
+
 def test_defaults_with_no_environment_variables(monkeypatch):
     monkeypatch.delenv("NEXUS_ENV", raising=False)
     monkeypatch.delenv("NEXUS_LOG_LEVEL", raising=False)
