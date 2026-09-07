@@ -63,6 +63,19 @@ def test_http_provider_sends_expected_request(mock_urlopen):
 
 
 @patch("nexusagent.http_provider.urllib.request.urlopen")
+def test_http_provider_sends_default_model_and_timeout_unmodified(mock_urlopen):
+    mock_urlopen.return_value = make_response({"output": "hello"})
+    provider = HttpProvider(ProviderConfig(endpoint="https://example.test/generate"))
+
+    provider.generate("hi there")
+
+    request = mock_urlopen.call_args.args[0]
+    body = json.loads(request.data)
+    assert body == {"model": None, "input": "hi there"}
+    assert mock_urlopen.call_args.kwargs["timeout"] == 30.0
+
+
+@patch("nexusagent.http_provider.urllib.request.urlopen")
 def test_http_provider_without_api_key_omits_authorization_header(mock_urlopen):
     mock_urlopen.return_value = make_response({"output": "hello"})
     config = ProviderConfig(endpoint="https://example.test/generate", api_key=None)
