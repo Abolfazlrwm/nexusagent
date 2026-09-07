@@ -36,6 +36,14 @@ def test_create_provider_passes_config_to_provider():
     assert provider.config is config
 
 
+def test_create_provider_passes_config_to_http_provider():
+    config = ProviderConfig(endpoint="https://example.test")
+
+    provider = create_provider("http", config)
+
+    assert provider.config is config
+
+
 def test_create_provider_http_returns_http_provider():
     provider = create_provider("http", ProviderConfig(endpoint="https://example.test"))
 
