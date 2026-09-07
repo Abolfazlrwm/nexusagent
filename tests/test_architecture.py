@@ -129,6 +129,19 @@ def test_runtime_factory_does_not_depend_on_application_layer():
     assert_no_forbidden_imports("runtime_factory.py", forbidden)
 
 
+# --- Rule K — Runtime Factory does not bypass the Tool Factory ---
+
+
+def test_runtime_factory_does_not_bypass_tool_factory():
+    forbidden = {
+        "nexusagent.tool_registry",
+        "nexusagent.echo_tool",
+        "nexusagent.uppercase_tool",
+        "nexusagent.calculator_tool",
+    }
+    assert_no_forbidden_imports("runtime_factory.py", forbidden)
+
+
 # --- Rule F — HTTP Provider ---
 
 
