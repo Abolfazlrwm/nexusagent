@@ -1,4 +1,5 @@
 import json
+import os
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -34,6 +35,20 @@ def test_default_runtime_uses_fake_provider():
     runtime = create_runtime()
 
     assert isinstance(runtime.agent.provider, FakeProvider)
+
+
+def test_create_runtime_default_settings_produce_default_provider_config(monkeypatch):
+    for key in list(os.environ):
+        if key.startswith("NEXUS_"):
+            monkeypatch.delenv(key, raising=False)
+
+    runtime = create_runtime()
+
+    config = runtime.agent.provider.config
+    assert config.model is None
+    assert config.api_key is None
+    assert config.endpoint is None
+    assert config.timeout == 30.0
 
 
 def test_runtime_run_returns_successful_agent_result():
