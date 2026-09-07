@@ -96,11 +96,25 @@ def test_provider_config_stores_model_and_api_key():
     assert config.api_key == "secret"
 
 
+def test_provider_config_stores_endpoint_and_timeout():
+    config = ProviderConfig(endpoint="https://example.test/generate", timeout=5.0)
+
+    assert config.endpoint == "https://example.test/generate"
+    assert config.timeout == 5.0
+
+
 def test_provider_config_defaults_to_none():
     config = ProviderConfig()
 
     assert config.model is None
     assert config.api_key is None
+
+
+def test_provider_config_endpoint_and_timeout_defaults():
+    config = ProviderConfig()
+
+    assert config.endpoint is None
+    assert config.timeout == 30.0
 
 
 def test_provider_config_is_immutable():
