@@ -181,12 +181,40 @@ def test_agent_has_no_upward_dependencies():
     assert_no_forbidden_imports("agent.py", forbidden)
 
 
+# --- Rule I — Runtime construction does not bypass the Provider Factory ---
+
+
+def test_runtime_does_not_construct_concrete_providers_directly():
+    forbidden = {
+        "nexusagent.providers",
+        "nexusagent.http_provider",
+    }
+    assert_no_forbidden_imports("runtime.py", forbidden)
+
+
 # --- Rule F — Application layer ---
 
 
 def test_application_does_not_depend_on_main():
     forbidden = {
         "nexusagent.main",
+    }
+    assert_no_forbidden_imports("application.py", forbidden)
+
+
+# --- Rule J — Application Factory does not bypass the Runtime Factory ---
+
+
+def test_application_does_not_bypass_runtime_factory():
+    forbidden = {
+        "nexusagent.tool_registry",
+        "nexusagent.tool_executor",
+        "nexusagent.tool",
+        "nexusagent.agent",
+        "nexusagent.provider",
+        "nexusagent.providers",
+        "nexusagent.http_provider",
+        "nexusagent.factory",
     }
     assert_no_forbidden_imports("application.py", forbidden)
 
