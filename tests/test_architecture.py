@@ -166,6 +166,21 @@ def test_provider_factory_has_no_upward_dependencies():
     assert_no_forbidden_imports("factory.py", forbidden)
 
 
+# --- Rule H — Agent ---
+
+
+def test_agent_has_no_upward_dependencies():
+    forbidden = {
+        "nexusagent.application",
+        "nexusagent.main",
+        "nexusagent.runtime",
+        "nexusagent.runtime_factory",
+        "nexusagent.tool_factory",
+        "nexusagent.factory",
+    }
+    assert_no_forbidden_imports("agent.py", forbidden)
+
+
 # --- Rule F — Application layer ---
 
 

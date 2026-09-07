@@ -1,3 +1,6 @@
+import json
+from unittest.mock import MagicMock, patch
+
 import pytest
 
 from nexusagent.agent import Agent, AgentResult
@@ -191,6 +194,23 @@ def test_runtime_run_does_not_leak_api_key_on_provider_failure(monkeypatch):
 
     assert result.success is False
     assert "super-secret-value" not in result.output
+
+
+@patch("nexusagent.http_provider.urllib.request.urlopen")
+def test_runtime_run_succeeds_with_factory_created_http_provider(mock_urlopen):
+    response = MagicMock()
+    response.read.return_value = json.dumps({"output": "hello from http"}).encode("utf-8")
+    response.__enter__.return_value = response
+    response.__exit__.return_value = False
+    mock_urlopen.return_value = response
+
+    settings = Settings(provider="http", endpoint="https://example.test/generate")
+    runtime = create_runtime(settings)
+
+    result = runtime.run("hello")
+
+    assert result.success is True
+    assert result.output == "hello from http"
 
 
 # --- Tool wiring (Task 1.25) ---
