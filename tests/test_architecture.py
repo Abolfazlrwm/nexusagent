@@ -129,6 +129,25 @@ def test_runtime_factory_does_not_depend_on_application_layer():
     assert_no_forbidden_imports("runtime_factory.py", forbidden)
 
 
+# --- Rule F — HTTP Provider ---
+
+
+def test_http_provider_has_no_upward_dependencies():
+    forbidden = {
+        "nexusagent.application",
+        "nexusagent.main",
+        "nexusagent.runtime",
+        "nexusagent.runtime_factory",
+        "nexusagent.tool_factory",
+        "nexusagent.tool_registry",
+        "nexusagent.tool_executor",
+        "nexusagent.tool",
+        "nexusagent.agent",
+        "nexusagent.factory",
+    }
+    assert_no_forbidden_imports("http_provider.py", forbidden)
+
+
 # --- Rule F — Application layer ---
 
 
