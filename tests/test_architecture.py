@@ -190,6 +190,8 @@ def test_agent_has_no_upward_dependencies():
         "nexusagent.runtime_factory",
         "nexusagent.tool_factory",
         "nexusagent.factory",
+        "nexusagent.providers",
+        "nexusagent.http_provider",
     }
     assert_no_forbidden_imports("agent.py", forbidden)
 

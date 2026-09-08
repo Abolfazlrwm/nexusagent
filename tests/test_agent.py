@@ -14,6 +14,14 @@ def test_agent_result_holds_output_and_success():
     assert result.success is True
 
 
+def test_agent_result_supports_value_equality():
+    result1 = AgentResult(output="hello", success=True)
+    result2 = AgentResult(output="hello", success=True)
+
+    assert result1 == result2
+    assert result1 is not result2
+
+
 def test_agent_result_has_exactly_output_and_success_fields():
     import dataclasses
 
@@ -76,6 +84,20 @@ def test_agent_run_passes_input_to_provider():
     assert received["prompt"] == "hello"
 
 
+def test_agent_run_forwards_input_to_provider_with_surrounding_whitespace_unchanged():
+    received = {}
+
+    class RecordingProvider:
+        def generate(self, prompt: str) -> str:
+            received["prompt"] = prompt
+            return "response"
+
+    agent = Agent(RecordingProvider())
+    agent.run("  hello world  ")
+
+    assert received["prompt"] == "  hello world  "
+
+
 def test_agent_run_output_comes_from_provider():
     agent = Agent(FakeProvider())
 
@@ -129,6 +151,17 @@ def test_agent_run_provider_failure_message_in_output():
     result = agent.run("hello")
 
     assert result.output == "provider error: provider failed"
+
+
+def test_agent_run_does_not_swallow_keyboard_interrupt():
+    class InterruptingProvider:
+        def generate(self, prompt: str) -> str:
+            raise KeyboardInterrupt()
+
+    agent = Agent(InterruptingProvider())
+
+    with pytest.raises(KeyboardInterrupt):
+        agent.run("hello")
 
 
 def test_agent_construction_does_not_perform_network_access(monkeypatch):
