@@ -140,6 +140,20 @@ def test_runtime_delegates_to_agent():
     assert result is expected_result
 
 
+def test_runtime_run_forwards_input_with_surrounding_whitespace_unchanged():
+    calls = {}
+
+    class RecordingAgent(Agent):
+        def run(self, input_text: str) -> AgentResult:
+            calls["input_text"] = input_text
+            return AgentResult(output="ok", success=True)
+
+    runtime = Runtime(RecordingAgent(FakeProvider()))
+    runtime.run("  hello world  ")
+
+    assert calls["input_text"] == "  hello world  "
+
+
 def test_runtime_run_propagates_agent_input_validation_errors():
     runtime = Runtime(Agent(FakeProvider()))
 
@@ -273,6 +287,14 @@ def make_echo_registry() -> ToolRegistry:
 # Runtime construction
 
 
+def test_runtime_stores_injected_agent_by_identity():
+    agent = Agent(FakeProvider())
+
+    runtime = Runtime(agent)
+
+    assert runtime.agent is agent
+
+
 def test_runtime_works_without_tool_dependencies():
     runtime = Runtime(Agent(FakeProvider()))
 
@@ -395,6 +417,20 @@ def test_runtime_execute_tool_delegates_to_agent_not_registry_or_executor_direct
 
     assert calls == {"tool_name": "echo", "input_data": "hello"}
     assert result == "delegated result"
+
+
+def test_runtime_execute_tool_returns_agent_result_by_identity():
+    sentinel_result = object()
+
+    class RecordingAgent(Agent):
+        def execute_tool(self, tool_name: str, input_data: str) -> str:
+            return sentinel_result
+
+    runtime = Runtime(RecordingAgent(FakeProvider()))
+
+    result = runtime.execute_tool("echo", "hello")
+
+    assert result is sentinel_result
 
 
 def test_runtime_execute_tool_missing_registry_raises_runtime_error():
