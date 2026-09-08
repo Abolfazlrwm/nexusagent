@@ -1,3 +1,5 @@
+import pytest
+
 from nexusagent.application import create_application_runtime
 from nexusagent.config import Settings
 from nexusagent.runtime import Runtime
@@ -160,6 +162,21 @@ def test_create_application_runtime_delegates_to_create_tool_runtime(monkeypatch
     assert len(calls) == 1
     assert calls[0] is settings
     assert result is sentinel_runtime
+
+
+def test_create_application_runtime_propagates_exception_from_create_tool_runtime(monkeypatch):
+    import nexusagent.application as application_module
+
+    class CustomConstructionError(Exception):
+        pass
+
+    def spy_create_tool_runtime(settings=None):
+        raise CustomConstructionError("boom")
+
+    monkeypatch.setattr(application_module, "create_tool_runtime", spy_create_tool_runtime)
+
+    with pytest.raises(CustomConstructionError, match="boom"):
+        create_application_runtime()
 
 
 def test_create_application_runtime_delegates_with_default_settings(monkeypatch):
