@@ -1,11 +1,37 @@
+from nexusagent.config import Settings
 from nexusagent.runtime import Runtime
 from nexusagent.runtime_factory import create_tool_runtime
+from nexusagent.tool_executor import ToolExecutor
+from nexusagent.tool_registry import ToolRegistry
 
 
 def test_create_tool_runtime_returns_a_runtime():
     runtime = create_tool_runtime()
 
     assert isinstance(runtime, Runtime)
+
+
+def test_create_tool_runtime_delegates_to_create_runtime(monkeypatch):
+    import nexusagent.runtime_factory as runtime_factory_module
+
+    calls = []
+    sentinel_runtime = object()
+
+    def spy_create_runtime(settings, tool_registry=None, tool_executor=None):
+        calls.append((settings, tool_registry, tool_executor))
+        return sentinel_runtime
+
+    monkeypatch.setattr(runtime_factory_module, "create_runtime", spy_create_runtime)
+
+    settings = Settings(provider="fake")
+    result = create_tool_runtime(settings)
+
+    assert len(calls) == 1
+    passed_settings, passed_registry, passed_executor = calls[0]
+    assert passed_settings is settings
+    assert isinstance(passed_registry, ToolRegistry)
+    assert isinstance(passed_executor, ToolExecutor)
+    assert result is sentinel_runtime
 
 
 def test_create_tool_runtime_configures_expected_tool_names():
