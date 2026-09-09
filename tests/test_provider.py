@@ -213,8 +213,19 @@ def test_text_response_supports_value_equality():
     assert TextResponse(text="hello") == TextResponse(text="hello")
 
 
+def test_text_response_inequality_for_different_values():
+    assert TextResponse(text="hello") != TextResponse(text="different")
+
+
 def test_tool_call_request_supports_value_equality():
     request1 = ToolCallRequest(tool_name="echo", tool_input="hi")
     request2 = ToolCallRequest(tool_name="echo", tool_input="hi")
 
     assert request1 == request2
+
+
+def test_tool_call_request_inequality_for_different_values():
+    request1 = ToolCallRequest(tool_name="echo", tool_input="hi")
+    request2 = ToolCallRequest(tool_name="calculator", tool_input="hi")
+
+    assert request1 != request2
