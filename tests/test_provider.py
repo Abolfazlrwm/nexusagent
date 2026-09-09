@@ -8,6 +8,8 @@ from nexusagent.provider import (
     ProviderError,
     ProviderRequestError,
     ProviderResponseError,
+    TextResponse,
+    ToolCallRequest,
 )
 
 
@@ -175,3 +177,44 @@ def test_provider_request_error_can_be_caught_as_provider_error():
 def test_provider_response_error_can_be_caught_as_provider_error():
     with pytest.raises(ProviderError):
         raise ProviderResponseError("bad response")
+
+
+# --- Structured Provider response contract ---
+
+
+def test_text_response_holds_exact_text():
+    response = TextResponse(text="hello world")
+
+    assert response.text == "hello world"
+
+
+def test_tool_call_request_holds_exact_tool_name_and_input():
+    request = ToolCallRequest(tool_name="calculator", tool_input="2 + 3")
+
+    assert request.tool_name == "calculator"
+    assert request.tool_input == "2 + 3"
+
+
+def test_text_response_is_immutable():
+    response = TextResponse(text="hello")
+
+    with pytest.raises(AttributeError):
+        response.text = "changed"
+
+
+def test_tool_call_request_is_immutable():
+    request = ToolCallRequest(tool_name="echo", tool_input="hi")
+
+    with pytest.raises(AttributeError):
+        request.tool_name = "changed"
+
+
+def test_text_response_supports_value_equality():
+    assert TextResponse(text="hello") == TextResponse(text="hello")
+
+
+def test_tool_call_request_supports_value_equality():
+    request1 = ToolCallRequest(tool_name="echo", tool_input="hi")
+    request2 = ToolCallRequest(tool_name="echo", tool_input="hi")
+
+    assert request1 == request2

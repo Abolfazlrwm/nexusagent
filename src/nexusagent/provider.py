@@ -24,6 +24,27 @@ class Provider(ABC):
     def generate(self, prompt: str) -> str: ...
 
 
+@dataclass(frozen=True)
+class TextResponse:
+    """A plain text response from a Provider."""
+
+    text: str
+
+
+@dataclass(frozen=True)
+class ToolCallRequest:
+    """A request from a Provider to call a specific Tool."""
+
+    tool_name: str
+    tool_input: str
+
+
+ProviderResponse = TextResponse | ToolCallRequest
+"""The structured response shape a Provider may eventually produce: either
+a plain text answer or a request to call a tool. Not yet part of the
+Provider.generate() contract, which continues to return a plain str."""
+
+
 class ProviderError(Exception):
     """Base exception for provider-related failures."""
 
