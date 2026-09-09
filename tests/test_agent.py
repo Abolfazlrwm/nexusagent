@@ -22,6 +22,13 @@ def test_agent_result_supports_value_equality():
     assert result1 is not result2
 
 
+def test_agent_result_inequality_for_different_values():
+    result1 = AgentResult(output="hello", success=True)
+    result2 = AgentResult(output="different", success=True)
+
+    assert result1 != result2
+
+
 def test_agent_result_has_exactly_output_and_success_fields():
     import dataclasses
 
