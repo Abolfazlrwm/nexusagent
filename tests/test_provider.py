@@ -124,6 +124,21 @@ def test_provider_config_is_immutable():
         config.model = "changed"
 
 
+def test_provider_config_supports_value_equality():
+    config1 = ProviderConfig(model="fake-model", api_key="secret")
+    config2 = ProviderConfig(model="fake-model", api_key="secret")
+
+    assert config1 == config2
+    assert config1 is not config2
+
+
+def test_provider_config_inequality_for_different_values():
+    config1 = ProviderConfig(model="fake-model")
+    config2 = ProviderConfig(model="different-model")
+
+    assert config1 != config2
+
+
 def test_provider_config_repr_does_not_expose_api_key():
     config = ProviderConfig(model="fake-model", api_key="super-secret")
 

@@ -34,6 +34,14 @@ def test_fake_provider_generate_returns_expected_string():
     assert result == "fake response: hello"
 
 
+def test_fake_provider_generate_preserves_surrounding_whitespace():
+    provider = FakeProvider()
+
+    result = provider.generate("  hello world  ")
+
+    assert result == "fake response:   hello world  "
+
+
 def test_fake_provider_does_not_perform_network_calls(monkeypatch):
     def fail_if_called(*args, **kwargs):
         raise AssertionError("FakeProvider.generate must not perform network calls")
