@@ -51,6 +51,48 @@ def test_get_returns_exact_registered_instance():
     assert result is tool
 
 
+def test_has_returns_true_for_registered_tool():
+    registry = ToolRegistry()
+    registry.register(make_echo_tool())
+
+    assert registry.has("echo") is True
+
+
+def test_has_returns_false_for_unknown_tool():
+    registry = ToolRegistry()
+
+    assert registry.has("missing") is False
+
+
+def test_has_does_not_modify_registry_state():
+    registry = ToolRegistry()
+    tool = make_echo_tool()
+    registry.register(tool)
+
+    registry.has("echo")
+    registry.has("missing")
+
+    assert registry.list_tools() == [tool]
+    assert registry.get("echo") is tool
+
+
+def test_has_does_not_execute_the_tool():
+    registry = ToolRegistry()
+    registry.register(ExplodingTool(name="boom", description="Explodes if executed"))
+
+    assert registry.has("boom") is True
+
+
+def test_has_invalid_name_raises_consistently_with_get():
+    registry = ToolRegistry()
+
+    with pytest.raises(TypeError):
+        registry.has(123)
+
+    with pytest.raises(ValueError):
+        registry.has("")
+
+
 def test_unregister_removes_tool():
     registry = ToolRegistry()
     tool = make_echo_tool()
