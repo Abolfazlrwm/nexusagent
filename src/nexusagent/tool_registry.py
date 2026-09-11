@@ -24,6 +24,11 @@ class ToolRegistry:
 
         return self._tools[name]
 
+    def has(self, name: str) -> bool:
+        self._validate_name(name)
+
+        return name in self._tools
+
     def unregister(self, name: str) -> None:
         self._validate_name(name)
 
