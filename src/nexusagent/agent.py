@@ -59,3 +59,10 @@ class Agent:
 
         tool = self.tool_registry.get(tool_name)
         return self.tool_executor.execute(tool, input_data)
+
+    def has_tool(self, tool_name: str) -> bool:
+        """Return whether a tool is currently available through the Agent."""
+        if self.tool_registry is None:
+            raise RuntimeError("Agent requires a ToolRegistry to check tool availability")
+
+        return self.tool_registry.has(tool_name)

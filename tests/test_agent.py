@@ -665,3 +665,62 @@ def test_agent_execute_tool_propagates_value_error_for_empty_input():
 
     with pytest.raises(ValueError):
         agent.execute_tool("echo", "")
+
+
+# U. Agent.has_tool()
+
+
+def test_agent_has_tool_returns_true_for_registered_tool():
+    agent = Agent(FakeProvider(), tool_registry=make_echo_tool_registry())
+
+    assert agent.has_tool("echo") is True
+
+
+def test_agent_has_tool_returns_false_for_unknown_tool():
+    agent = Agent(FakeProvider(), tool_registry=make_echo_tool_registry())
+
+    assert agent.has_tool("unknown") is False
+
+
+def test_agent_has_tool_delegates_to_configured_registry():
+    class RecordingHasRegistry:
+        def __init__(self, result):
+            self.result = result
+            self.requested_name = None
+
+        def has(self, name):
+            self.requested_name = name
+            return self.result
+
+    registry = RecordingHasRegistry(result=True)
+    agent = Agent(FakeProvider(), tool_registry=registry)
+
+    result = agent.has_tool("echo")
+
+    assert registry.requested_name == "echo"
+    assert result is True
+
+
+def test_agent_has_tool_does_not_execute_the_tool():
+    registry = ToolRegistry()
+    registry.register(FailingTool(name="boom", description="Explodes if executed"))
+    agent = Agent(FakeProvider(), tool_registry=registry)
+
+    assert agent.has_tool("boom") is True
+
+
+def test_agent_has_tool_propagates_invalid_name_errors():
+    agent = Agent(FakeProvider(), tool_registry=make_echo_tool_registry())
+
+    with pytest.raises(TypeError):
+        agent.has_tool(123)
+
+    with pytest.raises(ValueError):
+        agent.has_tool("")
+
+
+def test_agent_has_tool_without_registry_raises_runtime_error():
+    agent = Agent(FakeProvider())
+
+    with pytest.raises(RuntimeError, match="Agent requires a ToolRegistry"):
+        agent.has_tool("echo")
