@@ -1,6 +1,24 @@
 # Python build metadata
 *.egg-info/
+build/
+dist/
 
 # Python cache
 __pycache__/
 *.py[cod]
+
+# Tool caches
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments and local config
+.venv/
+venv/
+.env
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store

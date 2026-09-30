@@ -2,20 +2,39 @@
 
 NexusAgent is a modular AI agent runtime. Rather than being a chatbot or a thin wrapper around a single LLM API, it provides the surrounding system an agent needs: a stable execution core (`Agent`), a pluggable model backend (`Provider`), a small set of callable capabilities (`Tools`), and an application layer that wires these together into a `Runtime`.
 
-The project is under active, incremental development. The current implementation is deliberately small: a synchronous, single-turn `Agent` around a `Provider`, plus a minimal `Tool` subsystem that can be invoked explicitly (there is currently no automatic tool selection, planning, or memory).
+The project is under active, incremental development. The current implementation is deliberately small: a synchronous `Agent` around a `Provider` with an **autonomous tool loop** — the model can ask for a tool, the agent runs it, feeds the result back, and repeats until the model answers (bounded by an iteration limit). Tools can also still be invoked explicitly. There is currently no planning or memory.
 
 ## Architecture
 
 ```text
 Provider   — generates a response for a given input (e.g. FakeProvider, HttpProvider)
-Agent      — validates input, calls the Provider, and can execute an explicitly named Tool
-Tools      — small, independent callables (echo, uppercase, calculator) invoked by name
+Agent      — validates input, runs the Provider <-> Tool loop, and can execute an explicitly named Tool
+Tools      — small, independent callables (echo, uppercase, calculator) invoked by name,
+             either explicitly or because the Provider requested them
 Runtime    — wires a configured Agent (and, if provided, the Tool subsystem) together
 Factories  — construct Providers/Tools/Runtime from Settings (tool_factory, runtime_factory,
              application layer) so callers don't need to assemble these pieces by hand
 ```
 
-`Runtime.run(...)` drives the Provider path; `Runtime.execute_tool(...)` explicitly invokes one named Tool. The Agent never selects or chains Tools on its own — a caller (or, at the CLI, an explicit `tool run` command) decides when to run one.
+`Runtime.run(...)` drives the Provider path, including the tool loop; `Runtime.execute_tool(...)` explicitly invokes one named Tool. The Agent never *chooses* a tool itself — the Provider does, by returning a tool-call request — and the Agent only ever runs tools that are registered.
+
+## The tool loop
+
+```text
+prompt ──▶ Provider ──▶ text answer ─────────────────────▶ done
+              ▲  └────▶ tool-call request ──▶ run tool ──┐
+              └────────────── tool result ◀──────────────┘   (max 10 rounds)
+```
+
+- A tool failure (unknown tool, bad input, crash) is **not** fatal: it is sent back to the Provider as an error result so it can retry or explain.
+- Runaway providers are stopped by `Agent(max_iterations=...)` (default 10); hitting the limit returns `success=False`.
+- Providers that only return text (like `fake`) keep working unchanged.
+
+See it live, offline, with no API key:
+
+```bash
+python examples/tool_loop_demo.py
+```
 
 ## Public API
 
@@ -35,7 +54,7 @@ from nexusagent import (
 - `create_application_runtime(settings=None)` — the recommended entry point; returns a fully configured `Runtime` with the built-in Tools (`echo`, `uppercase`, `calculator`) registered.
 - `create_runtime(settings=None, tool_registry=None, tool_executor=None)` — a lower-level constructor for a `Runtime`; Tools are only attached if you supply a `tool_registry`/`tool_executor` yourself.
 - `Runtime` — holds a configured `Agent` and exposes `run(...)`, `execute_tool(...)`, and `list_tools()`.
-- `Agent` — validates input, calls a `Provider`, and (optionally) executes a named Tool.
+- `Agent` — validates input, runs the Provider/Tool loop, and (optionally) executes a named Tool. Takes `max_iterations` (default 10).
 - `AgentResult` — the immutable `(output: str, success: bool)` result of `Agent.run(...)`.
 - `Settings` — configuration (provider selection, model, API key, endpoint, timeout), normally built via `Settings.from_env()`.
 
@@ -74,7 +93,7 @@ This installs the `nexusagent` package along with its development dependencies (
 NexusAgent selects a provider via `NEXUS_PROVIDER` (or `--provider` on the CLI). Two providers exist today:
 
 - `fake` (default) — deterministic, no network access.
-- `http` — a generic HTTP provider. It sends `{"model": ..., "input": ...}` as a JSON POST to a configured endpoint and expects a JSON response with an `"output"` field. It is not tied to any specific vendor.
+- `http` — a generic HTTP provider. It sends `{"model": ..., "input": ...}` as a JSON POST to a configured endpoint (plus `tools` and `tool_results` when the agent has tools) and expects a JSON response that is either `{"output": "..."}` (final answer) or `{"tool_name": "...", "tool_input": "..."}` (please run this tool). It is not tied to any specific vendor. The full wire format is documented in [docs/protocol.md](docs/protocol.md).
 
 Relevant environment variables:
 
@@ -137,3 +156,6 @@ Run all local quality checks (lint, format check, tests) with:
 ```bash
 python scripts/check.py
 ```
+
+The same checks run in CI on every push and pull request (Python 3.10 – 3.13).
+Architecture rules (which module may import which) are enforced by `tests/test_architecture.py`.

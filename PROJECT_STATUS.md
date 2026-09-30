@@ -6,86 +6,76 @@ where to resume without re-reading the entire history.
 
 ## Current state: WORKING and STABLE
 
-- 578 tests, all passing.
+- 623 tests, all passing (includes an end-to-end test against a real local HTTP server).
 - `ruff check .` — clean.
 - `ruff format --check .` — clean.
-- `python scripts/check.py` — passes.
+- `python scripts/check.py` — passes (also runs in CI, Python 3.10 – 3.13).
 - No known bugs, no known regressions, no unfinished/half-done code.
 
 This is a safe point to stop at. Nothing is broken or left mid-change.
 
 ## What NexusAgent can actually do today
 
-A real, working, tested agent runtime that can:
+A real, working, tested agent runtime with an **autonomous tool loop**:
 
 - Run a prompt through a Provider (`FakeProvider` for offline/dev use,
-  `HttpProvider` for a real HTTP backend) and get back a plain text
-  answer via `Agent.run()` / `Runtime.run()`.
+  `HttpProvider` for a real HTTP backend, `ScriptedProvider` for demos/tests)
+  via `Agent.run()` / `Runtime.run()`.
+- If the Provider answers with a tool-call request, the Agent runs that tool
+  itself, feeds the result back, and asks again — until the Provider answers
+  in plain text or `max_iterations` (default 10) is reached.
+- Tool failures (unknown tool, invalid input, crash) do not abort the run;
+  they are fed back to the Provider as error results so it can recover.
 - Register and run explicit, named tools (`EchoTool`, `UppercaseTool`,
   `CalculatorTool`) through `Agent.execute_tool()` / `Runtime.execute_tool()`,
-  either from Python or from the CLI (`python -m nexusagent tool run ...`).
-- Check whether a tool is available without executing it
-  (`Agent.has_tool()` / `ToolRegistry.has()`).
+  from Python or the CLI (`python -m nexusagent tool run ...`).
 - Configure everything through `Settings` (env vars prefixed `NEXUS_`,
   or explicit construction).
 
-None of this is a toy — every layer (Provider, Tool, Registry, Executor,
-Agent, Runtime, and all four factories) has been independently and
-thoroughly contract-tested, with explicit architecture rules preventing
-lower layers from depending upward on higher ones.
+## Decision made: the tool-call wire format
 
-## What does NOT exist yet (this is the important part)
+The blocker from the previous snapshot is resolved. NexusAgent defines its own
+minimal, vendor-neutral format (option 1 of the old resume point). Full spec:
+[`docs/protocol.md`](docs/protocol.md).
 
-**There is no autonomous agent loop.** Tool execution is 100% manual —
-a human (or calling code) has to explicitly say "run this tool with
-this input." The model/provider cannot request a tool call and have it
-executed automatically, get the result fed back, and continue reasoning.
+- Response is exactly one of `{"output": "..."}` or
+  `{"tool_name": "...", "tool_input": "..."}`.
+- Request gains optional `tools` (what the agent can run) and `tool_results`
+  (results so far), and is byte-for-byte unchanged when neither applies.
 
-Concretely, `Provider.generate()` still only returns a plain `str`.
-Structured response types (`TextResponse`, `ToolCallRequest`,
-`ProviderResponse`) exist in `src/nexusagent/provider.py` but are
-**not produced by any Provider and not consumed by Agent.run()**. They
-are prepared groundwork, not active behavior.
+Backward compatibility: `Provider.generate() -> str` is unchanged. A new
+non-abstract `Provider.generate_response()` returns a `ProviderResponse`;
+its default wraps `generate()`, so text-only providers need no changes. The
+Agent also still accepts duck-typed providers that only define `generate()`.
+`AgentResult` is unchanged (`output`, `success`).
 
-## Why it stopped here (not a bug — a deliberate blocker)
+## What does NOT exist yet
 
-Building the actual loop requires a real answer to one question first:
+- Adapters for specific vendor APIs (OpenAI, Anthropic, ...). Write one as a
+  small service speaking `docs/protocol.md`, or as a new `Provider` subclass
+  that overrides `generate_response()`.
+- Tool inputs are still a single string. Structured/JSON tool arguments and
+  tool schemas would be the next protocol revision.
+- Conversation memory / multi-turn history, planning, streaming, async.
+- Loop configuration through `Settings` / the CLI (`max_iterations` is only an
+  `Agent(...)` constructor argument today — adding a `NEXUS_MAX_ITERATIONS`
+  setting also means updating the exact-`repr` tests in `tests/test_config.py`).
+- `AgentResult` does not expose a trace of tool calls (they are logged at
+  INFO/DEBUG under `nexusagent.agent`). Adding a field means updating
+  `test_agent_result_has_exactly_output_and_success_fields`.
 
-> **What wire format will a real backend use to say "call this tool
-> with this input" instead of "here is a text answer"?**
+## Suggested next steps
 
-Nothing in the codebase currently defines this. `HttpProvider` only
-recognizes `{"output": "..."}`. Inventing a made-up format now would
-mean building a parser for a protocol that might not match whatever
-backend actually gets used later — pure wasted, throwaway work.
+1. Pick one real backend and write its adapter (see above).
+2. Decide on structured tool arguments; bump the protocol doc when you do.
+3. Then consider surfacing a tool-call trace on `AgentResult`.
 
-**This is the single decision that unblocks everything else.**
+## One intentional change to an old test
 
-## Exact resume point — read this first when you come back
-
-1. Decide the tool-call response shape. Two real options:
-   - Design NexusAgent's own minimal format (e.g. HTTP response body
-     can contain either `{"output": "..."}` or
-     `{"tool_name": "...", "tool_input": "..."}`), and update
-     `HttpProvider` to recognize both and produce a `ToolCallRequest`
-     for the second case.
-   - Or, if you already know which real LLM API you'll actually call
-     (OpenAI, Anthropic, etc.), base the shape on that API's real
-     tool-call response format instead of inventing one.
-2. Once `HttpProvider` (or a new Provider) can genuinely produce a
-   `ToolCallRequest`, revisit whether `Agent.run()` should consume
-   `ProviderResponse` instead of a plain `str`, and design the
-   smallest clean loop: provider responds → if it's a tool call,
-   execute it via the existing `Agent.execute_tool()` → feed the
-   result back to the provider → provider responds again → repeat
-   until it's a plain text answer (with a hard iteration limit).
-3. Only after that loop exists and is tested does it make sense to
-   revisit whether `AgentResult` needs to change, whether the CLI
-   needs new flags, etc.
-
-Do not start by building loop machinery in the abstract — start by
-picking the real response shape in step 1. Everything else follows
-from that.
+`tests/test_agent.py::ExplodingRegistry` gained a `list_tools()` method,
+because the Agent now lists tools to advertise them to the Provider. The
+original intent still holds and is still tested: a plain text answer never
+looks up or executes a tool.
 
 ## How to run things
 
@@ -99,4 +89,5 @@ python scripts/check.py       # full project check (used in CI-style validation)
 python -m nexusagent "your prompt here"          # run the agent
 python -m nexusagent tool list                   # list built-in tools
 python -m nexusagent tool run echo "hello"        # run a tool directly
+python examples/tool_loop_demo.py                # watch the tool loop, offline
 ```

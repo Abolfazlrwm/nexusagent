@@ -4,12 +4,20 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nexusagent"
-version = "0.1.0"
+version = "0.2.0"
 description = "An experimental, modular AI agent runtime under active development."
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
 dependencies = []
+keywords = ["ai", "agent", "llm", "tools", "runtime"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+]
+
+[project.scripts]
+nexusagent = "nexusagent.main:main"
 
 [project.optional-dependencies]
 dev = [
