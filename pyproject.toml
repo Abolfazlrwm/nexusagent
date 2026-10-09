@@ -4,21 +4,46 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nexusagent"
-version = "0.1.0"
-description = "An experimental, modular AI agent runtime under active development."
+version = "0.2.0"
+description = "A small, dependency-free runtime for AI agents: providers, tools and a tool-calling loop."
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
+authors = [{ name = "Abolfazlrwm" }]
+keywords = ["ai", "agent", "llm", "tool-calling", "runtime"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries",
+    "Typing :: Typed",
+]
 dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/Abolfazlrwm/nexusagent"
+Issues = "https://github.com/Abolfazlrwm/nexusagent/issues"
+
+[project.scripts]
+nexusagent = "nexusagent.main:main"
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
     "ruff>=0.6",
+    "mypy>=1.10",
 ]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+nexusagent = ["py.typed"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -26,3 +51,9 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 100
 src = ["src"]
+target-version = "py310"
+
+[tool.mypy]
+python_version = "3.10"
+files = ["src"]
+strict = true

@@ -319,3 +319,58 @@ def test_init_exposes_agent_result():
     source = get_source(SRC_DIR / "__init__.py")
 
     assert "AgentResult" in source, "__init__.py must continue to export AgentResult"
+
+
+# --- Rule N — Provider implementations never depend on the application stack ---
+
+_UPWARD = {
+    "nexusagent.application",
+    "nexusagent.main",
+    "nexusagent.runtime",
+    "nexusagent.runtime_factory",
+    "nexusagent.tool_factory",
+    "nexusagent.tool_registry",
+    "nexusagent.tool_executor",
+    "nexusagent.tool",
+    "nexusagent.agent",
+    "nexusagent.factory",
+}
+
+
+def test_new_provider_modules_have_no_upward_dependencies():
+    for filename in ("openai_provider.py", "anthropic_provider.py", "wire.py"):
+        assert_no_forbidden_imports(filename, _UPWARD)
+
+
+def test_wire_helpers_only_depend_on_the_provider_contract():
+    nexus = {m for m in get_imported_modules(SRC_DIR / "wire.py") if m.startswith("nexusagent")}
+
+    assert nexus <= {"nexusagent.provider"}
+
+
+def test_agent_does_not_depend_on_any_concrete_provider():
+    assert_no_forbidden_imports(
+        "agent.py",
+        {
+            "nexusagent.openai_provider",
+            "nexusagent.anthropic_provider",
+            "nexusagent.wire",
+        },
+    )
+
+
+def test_runtime_does_not_construct_new_concrete_providers_directly():
+    assert_no_forbidden_imports(
+        "runtime.py", {"nexusagent.openai_provider", "nexusagent.anthropic_provider"}
+    )
+
+
+def test_no_third_party_runtime_dependencies():
+    """NexusAgent's core is standard-library only; keep it that way deliberately."""
+    import sys
+
+    stdlib = set(sys.stdlib_module_names)
+    for path in SRC_DIR.glob("*.py"):
+        for module in get_imported_modules(path):
+            root = module.split(".")[0]
+            assert root in stdlib or root == "nexusagent", f"{path.name} imports {module}"

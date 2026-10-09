@@ -4,6 +4,7 @@ Runs, in order, and stops at the first failure:
 
     ruff check .
     ruff format --check .
+    mypy
     pytest
 
 Usage:
@@ -21,6 +22,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 CHECKS = [
     ("Running ruff check...", [sys.executable, "-m", "ruff", "check", "."]),
     ("Running ruff format check...", [sys.executable, "-m", "ruff", "format", "--check", "."]),
+    ("Running mypy...", [sys.executable, "-m", "mypy"]),
     ("Running pytest...", [sys.executable, "-m", "pytest"]),
 ]
 

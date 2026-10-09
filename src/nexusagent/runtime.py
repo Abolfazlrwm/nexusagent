@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from nexusagent.agent import Agent, AgentResult
+from nexusagent.agent import Agent, AgentResult, Conversation
 from nexusagent.config import Settings
 from nexusagent.factory import create_provider
 from nexusagent.provider import ProviderConfig
@@ -22,6 +22,10 @@ class Runtime:
 
     def run(self, input_text: str) -> AgentResult:
         return self.agent.run(input_text)
+
+    def conversation(self) -> Conversation:
+        """Start a multi-turn Conversation that remembers earlier turns."""
+        return Conversation(self.agent)
 
     def execute_tool(self, tool_name: str, input_data: str) -> str:
         return self.agent.execute_tool(tool_name, input_data)
@@ -50,5 +54,11 @@ def create_runtime(
         timeout=settings.timeout,
     )
     provider = create_provider(settings.provider, config)
-    agent = Agent(provider, tool_registry=tool_registry, tool_executor=tool_executor)
+    agent = Agent(
+        provider,
+        tool_registry=tool_registry,
+        tool_executor=tool_executor,
+        max_steps=settings.max_steps,
+        system_prompt=settings.system_prompt,
+    )
     return Runtime(agent, tool_registry=tool_registry, tool_executor=tool_executor)

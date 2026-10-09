@@ -1,25 +1,100 @@
 # NexusAgent
 
-NexusAgent is a modular AI agent runtime. Rather than being a chatbot or a thin wrapper around a single LLM API, it provides the surrounding system an agent needs: a stable execution core (`Agent`), a pluggable model backend (`Provider`), a small set of callable capabilities (`Tools`), and an application layer that wires these together into a `Runtime`.
+[![CI](https://github.com/Abolfazlrwm/nexusagent/actions/workflows/ci.yml/badge.svg)](https://github.com/Abolfazlrwm/nexusagent/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/python-3.10%2B-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
 
-The project is under active, incremental development. The current implementation is deliberately small: a synchronous, single-turn `Agent` around a `Provider`, plus a minimal `Tool` subsystem that can be invoked explicitly (there is currently no automatic tool selection, planning, or memory).
+A small, readable runtime for AI agents in Python. **No third-party dependencies** — standard library only.
 
-## Architecture
+NexusAgent gives a model what it needs to act: a pluggable **provider** (OpenAI-compatible APIs, Anthropic, or your own HTTP backend), a set of **tools** it can call, and an **agent loop** that runs a requested tool, feeds the result back, and repeats until the model gives a final answer.
 
 ```text
-Provider   — generates a response for a given input (e.g. FakeProvider, HttpProvider)
-Agent      — validates input, calls the Provider, and can execute an explicitly named Tool
-Tools      — small, independent callables (echo, uppercase, calculator) invoked by name
-Runtime    — wires a configured Agent (and, if provided, the Tool subsystem) together
-Factories  — construct Providers/Tools/Runtime from Settings (tool_factory, runtime_factory,
-             application layer) so callers don't need to assemble these pieces by hand
+you ──► Agent ──► Provider (LLM) ──► "call tool X"
+          ▲                              │
+          └──── tool result ◄── ToolExecutor ◄┘      …until a final text answer
 ```
 
-`Runtime.run(...)` drives the Provider path; `Runtime.execute_tool(...)` explicitly invokes one named Tool. The Agent never selects or chains Tools on its own — a caller (or, at the CLI, an explicit `tool run` command) decides when to run one.
+## Install
 
-## Public API
+Not yet on PyPI. From a clone:
 
-The supported way to use NexusAgent as a library is through the package root:
+```bash
+git clone https://github.com/Abolfazlrwm/nexusagent
+cd nexusagent
+pip install -e ".[dev]"
+```
+
+## Quick start (offline, no API key)
+
+```python
+from nexusagent import create_application_runtime
+
+runtime = create_application_runtime()  # fake provider by default
+print(runtime.run("Hello NexusAgent").output)  # fake response: Hello NexusAgent
+print(runtime.execute_tool("calculator", "2 + 3"))  # 5
+```
+
+See the tool loop run without any network — [`examples/tool_loop_offline.py`](examples/tool_loop_offline.py):
+
+```python
+model = ScriptedProvider([ToolCallRequest("calculator", "1234 * 5"), "1234 times 5 is 6170."])
+agent = Agent(model, tool_registry=create_tool_registry(), tool_executor=ToolExecutor())
+result = agent.run("What is 1234 * 5?")
+# result.steps  -> (AgentStep(tool_name='calculator', tool_input='1234 * 5', tool_output='6170'),)
+# result.output -> '1234 times 5 is 6170.'
+```
+
+## Use a real model
+
+Configuration is read from environment variables (or pass a `Settings(...)`).
+
+| Variable | Meaning | Default |
+| --- | --- | --- |
+| `NEXUS_PROVIDER` | `fake`, `http`, `openai`, `anthropic` | `fake` |
+| `NEXUS_MODEL` | model identifier (required for `openai` / `anthropic`) | – |
+| `NEXUS_API_KEY` | API key (required for `anthropic`; optional for local servers) | – |
+| `NEXUS_ENDPOINT` | endpoint URL (required for `http`; optional override for the others) | provider default |
+| `NEXUS_TIMEOUT` | request timeout, seconds | `30` |
+| `NEXUS_SYSTEM_PROMPT` | system prompt for the agent | – |
+| `NEXUS_MAX_STEPS` | max model/tool round-trips per run (1–100) | `8` |
+| `NEXUS_LOG_LEVEL` | `DEBUG`, `INFO`, … | `INFO` |
+
+**Local model with Ollama** (free, private, no key):
+
+```bash
+export NEXUS_PROVIDER=openai NEXUS_MODEL=llama3.1
+export NEXUS_ENDPOINT=http://localhost:11434/v1/chat/completions
+python -m nexusagent "What is 1234 * 5? Use the calculator." -v
+```
+
+**OpenAI** (or any OpenAI-compatible service such as OpenRouter, Groq, LM Studio, vLLM):
+
+```bash
+export NEXUS_PROVIDER=openai NEXUS_MODEL=<model-id> NEXUS_API_KEY=sk-...
+python -m nexusagent "Uppercase the word hello"
+```
+
+**Anthropic:**
+
+```bash
+export NEXUS_PROVIDER=anthropic NEXUS_MODEL=<model-id> NEXUS_API_KEY=...
+python -m nexusagent "What is 2 + 3?"
+```
+
+(Check your provider's docs for current model IDs.)
+
+## Command line
+
+```bash
+python -m nexusagent "your prompt"          # one-shot run
+python -m nexusagent chat                   # interactive, remembers the conversation
+python -m nexusagent tool list              # list built-in tools
+python -m nexusagent tool run echo "hello"  # run a tool directly
+```
+
+Options for runs and `chat`: `--provider`, `--model`, `--max-steps`, `--system`, `-v/--verbose` (logs every tool call to stderr). In `chat`, `/reset` clears the history and `/exit` (or Ctrl-D) quits.
+
+## Library API
 
 ```python
 from nexusagent import (
@@ -32,108 +107,74 @@ from nexusagent import (
 )
 ```
 
-- `create_application_runtime(settings=None)` — the recommended entry point; returns a fully configured `Runtime` with the built-in Tools (`echo`, `uppercase`, `calculator`) registered.
-- `create_runtime(settings=None, tool_registry=None, tool_executor=None)` — a lower-level constructor for a `Runtime`; Tools are only attached if you supply a `tool_registry`/`tool_executor` yourself.
-- `Runtime` — holds a configured `Agent` and exposes `run(...)`, `execute_tool(...)`, and `list_tools()`.
-- `Agent` — validates input, calls a `Provider`, and (optionally) executes a named Tool.
-- `AgentResult` — the immutable `(output: str, success: bool)` result of `Agent.run(...)`.
-- `Settings` — configuration (provider selection, model, API key, endpoint, timeout), normally built via `Settings.from_env()`.
+- `create_application_runtime(settings=None)` — recommended entry point; a `Runtime` with the built-in tools registered.
+- `Runtime.run(text)` → `AgentResult(output, success, steps, messages)`; `Runtime.conversation()` → a multi-turn `Conversation` (`.send(text)`, `.reset()`).
+- `AgentResult.steps` lists each tool call made (`tool_name`, `tool_input`, `tool_output`, `is_error`).
 
-Everything else (`Tool`, `ToolRegistry`, `ToolExecutor`, `Provider`, `FakeProvider`, `HttpProvider`, the built-in `EchoTool`/`UppercaseTool`/`CalculatorTool`, and the various factory modules) is internal implementation detail. It exists under `nexusagent.*` submodules and may change without notice — only the symbols listed above are the intended public API.
+Everything else (`Tool`, `ToolRegistry`, providers, factories, …) lives under `nexusagent.*` submodules and may change; see the examples for how to use them directly.
 
-## Basic usage
+### How the loop behaves
+
+- The provider is told which tools exist; if it answers with a tool call, the agent runs it and sends the result back.
+- **Tool errors don't crash the run.** An unknown tool, bad input, or a tool raising is reported to the model as `error: …` so it can correct itself.
+- A run that doesn't finish within `max_steps` returns `success=False` instead of looping forever.
+- Provider failures return `success=False` with a `provider error: …` message; API keys never appear in errors or `repr`s.
+
+### Writing a tool
 
 ```python
-from nexusagent import create_application_runtime
+from nexusagent.tool import Tool
 
-runtime = create_application_runtime()
 
-result = runtime.run("Hello NexusAgent")
-print(result.output)  # fake response: Hello NexusAgent
-print(result.success)  # True
+class WordCountTool(Tool):
+    def __init__(self) -> None:
+        super().__init__(name="word_count", description="Counts the words in the given text.")
 
-print(runtime.execute_tool("calculator", "2 + 3"))  # 5
+    def execute(self, input_data: str) -> str:
+        return str(len(input_data.split()))
 ```
 
-By default `create_application_runtime()` uses the deterministic, network-free `fake` provider, so this example runs with no configuration. To use the generic HTTP provider instead, pass `Settings(provider="http", endpoint=...)` — see the [Providers](#providers) section below.
+Tools take and return a single string. To models they appear as a function with one string parameter, `input`. Full example: [`examples/custom_tool.py`](examples/custom_tool.py).
 
-## Installation
+## Generic HTTP provider wire format
 
-NexusAgent is not currently published on PyPI. For local development, clone the repository and install it in editable mode:
+`NEXUS_PROVIDER=http` talks to any backend you control. The agent loop POSTs:
 
-```bash
-git clone https://github.com/Abolfazlrwm/nexusagent
-cd nexusagent
-pip install -e ".[dev]"
+```json
+{"model": "...", "input": "<last user text>",
+ "messages": [{"role": "user", "content": "..."}],
+ "tools": [{"name": "calculator", "description": "..."}]}
 ```
 
-This installs the `nexusagent` package along with its development dependencies (`pytest`, `ruff`).
+and accepts either a final answer or a tool call:
 
-## Providers
-
-NexusAgent selects a provider via `NEXUS_PROVIDER` (or `--provider` on the CLI). Two providers exist today:
-
-- `fake` (default) — deterministic, no network access.
-- `http` — a generic HTTP provider. It sends `{"model": ..., "input": ...}` as a JSON POST to a configured endpoint and expects a JSON response with an `"output"` field. It is not tied to any specific vendor.
-
-Relevant environment variables:
-
-- `NEXUS_PROVIDER` — provider name (`fake` or `http`)
-- `NEXUS_MODEL` — model identifier passed to the provider
-- `NEXUS_API_KEY` — sent as a `Bearer` token if set
-- `NEXUS_ENDPOINT` — HTTP provider endpoint URL
-- `NEXUS_TIMEOUT` — HTTP request timeout in seconds (default `30`)
-
-The `http` provider only performs a network request when it actually runs — selecting it does not make any request on its own.
-
-## Tools
-
-Available tools can be listed from the CLI:
-
-```bash
-python -m nexusagent tool list
+```json
+{"output": "final text"}
+{"tool_name": "calculator", "tool_input": "2 + 3", "call_id": "optional"}
 ```
+
+Messages for tool turns carry `tool_name`, `tool_input` and `call_id` next to `role`/`content`.
+
+## Architecture
 
 ```text
-echo - Returns its input unchanged.
-uppercase - Converts input to uppercase.
-calculator - Performs basic arithmetic operations.
+Provider   — turns a conversation into a response (Fake, Scripted, Http, OpenAI, Anthropic)
+Agent      — the loop: ask provider → run requested tool → feed result back → repeat
+Tools      — small string-in/string-out callables (echo, uppercase, calculator)
+Runtime    — a configured Agent (+ tool subsystem)
+Factories  — build providers / tools / runtime from Settings
 ```
 
-A registered tool can be run directly from the CLI:
-
-```bash
-python -m nexusagent tool run echo "hello world"
-```
-
-```text
-hello world
-```
-
-```bash
-python -m nexusagent tool run uppercase "hello world"
-```
-
-```text
-HELLO WORLD
-```
-
-```bash
-python -m nexusagent tool run calculator "2 + 3"
-```
-
-```text
-5
-```
-
-Currently the built-in `echo`, `uppercase`, and `calculator` tools are available.
+Layering rules (e.g. "`agent` never imports a concrete provider", "no third-party dependencies") are enforced by tests in `tests/test_architecture.py`.
 
 ## Development
 
-NexusAgent is being developed incrementally, through small, focused changes.
-
-Run all local quality checks (lint, format check, tests) with:
-
 ```bash
-python scripts/check.py
+python scripts/check.py   # ruff check, ruff format --check, mypy (strict), pytest
 ```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md), [CHANGELOG.md](CHANGELOG.md) and [PROJECT_STATUS.md](PROJECT_STATUS.md).
+
+## License
+
+MIT

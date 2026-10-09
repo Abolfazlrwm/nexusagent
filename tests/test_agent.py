@@ -29,12 +29,19 @@ def test_agent_result_inequality_for_different_values():
     assert result1 != result2
 
 
-def test_agent_result_has_exactly_output_and_success_fields():
+def test_agent_result_has_exactly_the_expected_fields():
     import dataclasses
 
     field_names = {f.name for f in dataclasses.fields(AgentResult)}
 
-    assert field_names == {"output", "success"}
+    assert field_names == {"output", "success", "steps", "messages"}
+
+
+def test_agent_result_steps_and_messages_default_to_empty():
+    result = AgentResult(output="hello", success=True)
+
+    assert result.steps == ()
+    assert result.messages == ()
 
 
 def test_agent_result_is_immutable():
@@ -365,6 +372,10 @@ class RecordingExecutor:
 
 
 class ExplodingRegistry:
+    def list_tools(self):
+        # Agent.run() may advertise the available tools to the provider.
+        return []
+
     def get(self, name):
         raise AssertionError("registry.get must not be called by Agent.run()")
 
@@ -549,7 +560,7 @@ def test_agent_execute_tool_goes_through_executor_not_directly():
 # M. Agent.run() regression - must not touch tool infrastructure
 
 
-def test_agent_run_does_not_use_tool_registry_or_executor():
+def test_agent_run_does_not_execute_tools_unless_the_provider_requests_one():
     agent = Agent(
         FakeProvider(), tool_registry=ExplodingRegistry(), tool_executor=ExplodingExecutor()
     )
