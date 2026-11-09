@@ -240,3 +240,10 @@ def test_from_env_does_not_perform_network_access(monkeypatch):
     monkeypatch.setattr("socket.socket.connect", fail_if_called)
 
     Settings.from_env()
+
+
+def test_invalid_nexus_timeout_env_raises_readable_error(monkeypatch):
+    monkeypatch.setenv("NEXUS_TIMEOUT", "abc")
+
+    with pytest.raises(ValueError, match="Invalid NEXUS_TIMEOUT: 'abc'"):
+        Settings.from_env()

@@ -4,3 +4,14 @@
 # Python cache
 __pycache__/
 *.py[cod]
+# Virtual environments
+.venv/
+venv/
+
+# Coverage artifacts
+.coverage
+.coverage.*
+coverage.json
+dist/
+build/
+*.egg-info/

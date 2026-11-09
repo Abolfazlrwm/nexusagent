@@ -12,6 +12,24 @@ from nexusagent.provider import (
     ProviderResponseError,
 )
 
+_BODY_SNIPPET_MAX_CHARS = 200
+
+
+def _response_body_snippet(exc: urllib.error.HTTPError) -> str:
+    """Return a short, single-line snippet of an HTTP error body (best effort)."""
+    try:
+        body = exc.read().decode("utf-8", errors="replace").strip()
+    except Exception:  # noqa: BLE001 — the body is optional context, never fatal
+        return ""
+
+    if not body:
+        return ""
+
+    snippet = " ".join(body.split())
+    if len(snippet) > _BODY_SNIPPET_MAX_CHARS:
+        snippet = snippet[:_BODY_SNIPPET_MAX_CHARS] + "..."
+    return f": {snippet}"
+
 
 class HttpProvider(Provider):
     def __init__(self, config: ProviderConfig | None = None) -> None:
@@ -38,7 +56,12 @@ class HttpProvider(Provider):
             with urllib.request.urlopen(request, timeout=self.config.timeout) as response:
                 raw = response.read()
         except urllib.error.HTTPError as exc:
-            raise ProviderRequestError(f"HTTP request failed with status {exc.code}") from None
+            # Include a short snippet of the response body when available: real
+            # backends put useful context there (rate limits, auth failures, ...).
+            detail = _response_body_snippet(exc)
+            raise ProviderRequestError(
+                f"HTTP request failed with status {exc.code}{detail}"
+            ) from None
         except urllib.error.URLError as exc:
             raise ProviderRequestError(f"HTTP request failed: {exc.reason}") from None
         except TimeoutError:

@@ -21,4 +21,6 @@ class ToolExecutor:
         try:
             return tool.execute(input_data)
         except Exception as exc:
-            raise ToolExecutionError(str(exc)) from exc
+            # Preserve the original error class in the message: the chain keeps the
+            # exception itself, but callers often only see the ToolExecutionError text.
+            raise ToolExecutionError(f"{type(exc).__name__}: {exc}") from exc

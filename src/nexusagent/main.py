@@ -2,13 +2,13 @@ import argparse
 import sys
 from dataclasses import replace
 
-from nexusagent.application import create_application_runtime
+from nexusagent.application import Runtime, create_application_runtime
 from nexusagent.config import Settings
 from nexusagent.provider import ProviderError
 from nexusagent.tool_executor import ToolExecutionError
 
 
-def _build_tool_runtime():
+def _build_tool_runtime() -> Runtime:
     return create_application_runtime()
 
 
