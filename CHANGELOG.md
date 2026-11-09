@@ -22,9 +22,8 @@ First release published to PyPI as [`nexusagent`](https://pypi.org/project/nexus
   implementation. The vendor-neutral HTTP wire format is documented in
   `docs/protocol.md` (ADR 0002). Includes the deterministic, network-free
   `ScriptedProvider` for demos and tests.
-- Project documentation under `docs/`: HTTP protocol, ADRs for key decisions
-  (sync-first core, tool-call wire format), with guides and an architecture
-  overview to follow.
+- Project documentation under `docs/`: architecture overview, concepts,
+  custom provider/tool guides, the HTTP protocol spec, and ADRs 0001–0003.
 - Executable examples under `examples/` (basic runtime, custom tool, tool loop
   demo — all runnable offline, no API keys).
 - CI: lint + format (ruff), `mypy --strict`, tests with an enforced coverage
