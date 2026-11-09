@@ -44,7 +44,7 @@ def test_create_application_runtime_importable_from_package_root():
 
 
 def test_version_unchanged():
-    assert nexusagent.__version__ == importlib.metadata.version("nexusagent")
+    assert nexusagent.__version__ == importlib.metadata.version("nexusagent-runtime")
 
 
 def test_all_contains_exactly_the_public_api():
@@ -120,4 +120,4 @@ def test_import_does_not_require_environment_variables(monkeypatch):
 
     importlib.reload(nexusagent)
 
-    assert nexusagent.__version__ == importlib.metadata.version("nexusagent")
+    assert nexusagent.__version__ == importlib.metadata.version("nexusagent-runtime")

@@ -103,7 +103,7 @@ jobs:
       - name: Smoke test wheel in clean venv
         run: |
           python -m venv /tmp/smoke-venv
-          /tmp/smoke-venv/bin/pip install dist/nexusagent-*.whl
+          /tmp/smoke-venv/bin/pip install dist/*.whl
           /tmp/smoke-venv/bin/python -c "import nexusagent; print('version:', nexusagent.__version__)"
           /tmp/smoke-venv/bin/nexusagent "hello from the wheel"
           /tmp/smoke-venv/bin/python -m nexusagent tool run calculator "2+3"
