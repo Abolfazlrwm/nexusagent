@@ -880,3 +880,14 @@ def test_main_module_only_imports_application_level_construction_api():
     for construction in forbidden_constructions:
         assert construction not in source
     assert "nexusagent.application" in imports
+
+
+def test_dunder_main_entrypoint_runs_cli(monkeypatch, capsys):
+    import runpy
+
+    monkeypatch.setattr(sys, "argv", ["nexusagent", "tool", "list"])
+    runpy.run_module("nexusagent.__main__", run_name="__main__")
+
+    out = capsys.readouterr().out
+    assert "echo" in out
+    assert "uppercase" in out
