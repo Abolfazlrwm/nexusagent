@@ -30,7 +30,7 @@ def get_logger(name: str | None = None) -> logging.Logger:
 def _resolve_level(level: str) -> int:
     resolved = logging.getLevelName(level.upper())
     if not isinstance(resolved, int):
-        raise ValueError(f"Invalid log level: {level!r}")  # noqa: TRY004
+        raise ValueError(f"Invalid log level: {level!r}")
     return resolved
 
 

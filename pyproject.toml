@@ -1,28 +1,78 @@
 [build-system]
-requires = ["setuptools>=68.0"]
+requires = ["setuptools>=77.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "nexusagent"
-version = "0.1.0"
-description = "An experimental, modular AI agent runtime under active development."
+description = "A small, modular AI agent runtime in Python — agents, providers, tools and a readable core."
 readme = "README.md"
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.10"
 dependencies = []
+dynamic = ["version"]
+keywords = ["ai-agents", "agent-runtime", "llm", "tools", "providers"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+
+[project.scripts]
+nexusagent = "nexusagent.main:main"
+
+[project.urls]
+Homepage = "https://github.com/Abolfazlrwm/nexusagent"
+Repository = "https://github.com/Abolfazlrwm/nexusagent"
+Changelog = "https://github.com/Abolfazlrwm/nexusagent/blob/main/CHANGELOG.md"
+Issues = "https://github.com/Abolfazlrwm/nexusagent/issues"
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "mypy>=1.10",
     "ruff>=0.6",
+    "pre-commit>=3.7",
+    "build>=1.2",
 ]
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+nexusagent = ["py.typed"]
+
+[tool.setuptools.dynamic]
+version = { attr = "nexusagent.__version__" }
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "--cov=nexusagent --cov-report=term-missing"
+
+[tool.coverage.report]
+fail_under = 95
+show_missing = true
+
+[tool.mypy]
+strict = true
+files = ["src"]
+python_version = "3.10"
+warn_unused_ignores = true
 
 [tool.ruff]
 line-length = 100
-src = ["src"]
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "BLE", "C4", "SIM", "RUF"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["nexusagent"]
