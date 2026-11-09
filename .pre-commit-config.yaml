@@ -1,0 +1,35 @@
+# See https://pre-commit.com for more information
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: ^CHANGELOG\.md$
+      - id: end-of-file-fixer
+        exclude: ^CHANGELOG\.md$
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check
+        entry: ruff check src tests
+        language: system
+        pass_filenames: false
+      - id: ruff-format
+        name: ruff format check
+        entry: ruff format --check src tests
+        language: system
+        pass_filenames: false
+      - id: mypy
+        name: mypy (strict)
+        entry: mypy
+        language: system
+        pass_filenames: false
+      - id: pytest
+        name: pytest (coverage gate)
+        entry: pytest -q
+        language: system
+        pass_filenames: false
