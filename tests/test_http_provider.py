@@ -280,3 +280,50 @@ def test_http_provider_repr_does_not_leak_api_key():
     provider = HttpProvider(config)
 
     assert "super-secret" not in repr(provider.config)
+
+
+@patch("nexusagent.http_provider.urllib.request.urlopen")
+def test_http_provider_http_error_includes_response_body_snippet(mock_urlopen):
+    import io
+
+    mock_urlopen.side_effect = urllib.error.HTTPError(
+        "https://example.test/generate",
+        429,
+        "Too Many Requests",
+        None,
+        io.BytesIO(b'{"error": "rate limit exceeded"}'),
+    )
+    provider = HttpProvider(ProviderConfig(endpoint="https://example.test/generate"))
+
+    with pytest.raises(ProviderRequestError, match="rate limit exceeded"):
+        provider.generate("hi")
+
+
+@patch("nexusagent.http_provider.urllib.request.urlopen")
+def test_http_provider_http_error_body_snippet_is_truncated(mock_urlopen):
+    import io
+
+    mock_urlopen.side_effect = urllib.error.HTTPError(
+        "https://example.test/generate",
+        500,
+        "Internal Server Error",
+        None,
+        io.BytesIO(b"x" * 500),
+    )
+    provider = HttpProvider(ProviderConfig(endpoint="https://example.test/generate"))
+
+    with pytest.raises(ProviderRequestError, match=r"\.\.\.$"):
+        provider.generate("hi")
+
+
+@patch("nexusagent.http_provider.urllib.request.urlopen")
+def test_http_provider_http_error_with_empty_body_has_no_snippet(mock_urlopen):
+    import io
+
+    mock_urlopen.side_effect = urllib.error.HTTPError(
+        "https://example.test/generate", 500, "Internal Server Error", None, io.BytesIO(b"  ")
+    )
+    provider = HttpProvider(ProviderConfig(endpoint="https://example.test/generate"))
+
+    with pytest.raises(ProviderRequestError, match=r"status 500$"):
+        provider.generate("hi")

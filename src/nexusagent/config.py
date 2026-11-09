@@ -29,6 +29,15 @@ class Settings:
     @classmethod
     def from_env(cls) -> Settings:
         """Build Settings from the current process environment."""
+        raw_timeout = os.getenv("NEXUS_TIMEOUT", "30.0")
+        try:
+            timeout = float(raw_timeout)
+        except ValueError:
+            raise ValueError(
+                f"Invalid NEXUS_TIMEOUT: {raw_timeout!r} — "
+                "must be a number of seconds (e.g. 30 or 4.5)"
+            ) from None
+
         return cls(
             env=os.getenv("NEXUS_ENV", "development"),
             log_level=os.getenv("NEXUS_LOG_LEVEL", "INFO"),
@@ -36,7 +45,7 @@ class Settings:
             api_key=os.getenv("NEXUS_API_KEY"),
             provider=os.getenv("NEXUS_PROVIDER", "fake"),
             endpoint=os.getenv("NEXUS_ENDPOINT"),
-            timeout=float(os.getenv("NEXUS_TIMEOUT", "30.0")),
+            timeout=timeout,
         )
 
     def __repr__(self) -> str:
