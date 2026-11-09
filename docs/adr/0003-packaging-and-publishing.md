@@ -1,6 +1,8 @@
 # ADR 0003: Publish as `nexusagent` with Trusted Publishing and a Single-Sourced Version
 
-- Status: Accepted
+- Status: Accepted — **amended by [ADR 0004](0004-pypi-distribution-name.md)**:
+  the distribution name was changed to `nexusagent-runtime` before the first
+  PyPI upload; everything else in this ADR stands.
 - Date: 2026-11-09
 - Deciders: Abolfazl Ranjbaran
 
