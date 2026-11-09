@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -77,7 +78,10 @@ def push_to_gh_pages(badge: dict) -> None:
             check=False,
         )
         if clone.returncode != 0:
+            # No gh-pages branch yet (first publish): start a fresh orphan repo.
+            shutil.rmtree(work, ignore_errors=True)
             subprocess.run(["git", "init", "-q", "-b", GH_PAGES_BRANCH, str(work)], check=True)
+            _git(work, "remote", "add", "origin", remote)
 
         (work / BADGE_FILENAME).write_text(json.dumps(badge), encoding="utf-8")
         _git(work, "config", "user.name", CI_BOT_NAME)
