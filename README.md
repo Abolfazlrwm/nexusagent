@@ -2,8 +2,8 @@
 
 [![CI](https://github.com/Abolfazlrwm/nexusagent/actions/workflows/ci.yml/badge.svg)](https://github.com/Abolfazlrwm/nexusagent/actions/workflows/ci.yml)
 [![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/Abolfazlrwm/nexusagent/gh-pages/coverage-badge.json)](https://github.com/Abolfazlrwm/nexusagent/actions/workflows/ci.yml)
-[![PyPI](https://img.shields.io/pypi/v/nexusagent)](https://pypi.org/project/nexusagent/)
-[![Python](https://img.shields.io/pypi/pyversions/nexusagent)](https://pypi.org/project/nexusagent/)
+[![PyPI](https://img.shields.io/pypi/v/nexusagent-runtime)](https://pypi.org/project/nexusagent-runtime/)
+[![Python](https://img.shields.io/pypi/pyversions/nexusagent-runtime)](https://pypi.org/project/nexusagent-runtime/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 **A modular runtime for AI agents in Python — zero runtime dependencies, a small readable core, and an honest feature list.**
@@ -24,7 +24,7 @@ print(runtime.execute_tool("calculator", "2 + 3"))  # 5
 
 ## Why NexusAgent
 
-- **Zero runtime dependencies** — the whole core is the Python standard library. `pip install nexusagent` pulls nothing else.
+- **Zero runtime dependencies** — the whole core is the Python standard library. `pip install nexusagent-runtime` pulls nothing else.
 - **Readable by design** — the core is small enough to audit in an afternoon; architecture rules are enforced by tests, not comments.
 - **Honest** — the feature list below says what exists *and what doesn't*. No fake benchmarks, no aspirational docs.
 - **Typed** — ships `py.typed`; the source itself passes `mypy --strict`.
@@ -70,8 +70,13 @@ concepts: [docs/concepts.md](docs/concepts.md) · decisions:
 ## Installation
 
 ```bash
-pip install nexusagent
+pip install nexusagent-runtime
 ```
+
+> The **import name** is `nexusagent`; the **PyPI distribution** is
+> `nexusagent-runtime` — the exact name `nexusagent` is blocked on PyPI by an
+> unrelated placeholder package (`nexus-agent`), see
+> [ADR 0004](docs/adr/0004-pypi-distribution-name.md).
 
 Requires Python 3.10–3.13. From source:
 

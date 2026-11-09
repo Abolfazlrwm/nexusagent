@@ -9,7 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.4.0] - 2026-11-09
 
-First release published to PyPI as [`nexusagent`](https://pypi.org/project/nexusagent/).
+First release published to PyPI as [`nexusagent-runtime`](https://pypi.org/project/nexusagent-runtime/).
+The **import name** remains `nexusagent`.
 
 ### Added
 
@@ -23,7 +24,7 @@ First release published to PyPI as [`nexusagent`](https://pypi.org/project/nexus
   `docs/protocol.md` (ADR 0002). Includes the deterministic, network-free
   `ScriptedProvider` for demos and tests.
 - Project documentation under `docs/`: architecture overview, concepts,
-  custom provider/tool guides, the HTTP protocol spec, and ADRs 0001–0003.
+  custom provider/tool guides, the HTTP protocol spec, and ADRs 0001–0004.
 - Executable examples under `examples/` (basic runtime, custom tool, tool loop
   demo — all runnable offline, no API keys).
 - CI: lint + format (ruff), `mypy --strict`, tests with an enforced coverage
@@ -41,6 +42,12 @@ First release published to PyPI as [`nexusagent`](https://pypi.org/project/nexus
   `[project.urls]`, package keywords.
 - Lint rules extended (bugbear, comprehensions, pyupgrade, simplify, etc.) and
   the whole codebase brought up to them.
+- **Distribution name is `nexusagent-runtime`** (originally planned as
+  `nexusagent`). PyPI's confusingly-similar-name rule blocks registering
+  `nexusagent` because an unrelated placeholder package, `nexus-agent`,
+  already exists. The `v0.4.0` tag was moved to the renamed commit before the
+  first PyPI upload — nothing was ever published under the old name, so no
+  user is affected. See [ADR 0004](docs/adr/0004-pypi-distribution-name.md).
 
 ### Fixed
 
