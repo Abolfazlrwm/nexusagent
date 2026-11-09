@@ -6,9 +6,10 @@ where to resume without re-reading the entire history.
 
 ## Current state: WORKING and STABLE
 
-- 578 tests, all passing.
-- `ruff check .` — clean.
-- `ruff format --check .` — clean.
+- 628 tests, all passing.
+- `ruff check .` and `ruff format --check .` — clean.
+- `mypy --strict` — clean.
+- `pytest` enforces a coverage floor of 95% (currently ~99%).
 - `python scripts/check.py` — passes.
 - No known bugs, no known regressions, no unfinished/half-done code.
 
@@ -18,85 +19,60 @@ This is a safe point to stop at. Nothing is broken or left mid-change.
 
 A real, working, tested agent runtime that can:
 
-- Run a prompt through a Provider (`FakeProvider` for offline/dev use,
-  `HttpProvider` for a real HTTP backend) and get back a plain text
+- Run a prompt through a Provider (`FakeProvider`/`ScriptedProvider` for
+  offline/dev use, `HttpProvider` for a real HTTP backend) and get an
   answer via `Agent.run()` / `Runtime.run()`.
+- **Run the autonomous tool loop**: the Provider can answer with a
+  `ToolCallRequest` instead of text; the Agent executes the requested tool
+  through the registry/executor, feeds the `ToolResult` back, and repeats
+  until the Provider answers in plain text (bounded by `max_iterations`,
+  default 10). See `docs/adr/0002-tool-call-wire-format-and-agent-loop.md`
+  and `docs/protocol.md`.
 - Register and run explicit, named tools (`EchoTool`, `UppercaseTool`,
   `CalculatorTool`) through `Agent.execute_tool()` / `Runtime.execute_tool()`,
-  either from Python or from the CLI (`python -m nexusagent tool run ...`).
-- Check whether a tool is available without executing it
-  (`Agent.has_tool()` / `ToolRegistry.has()`).
+  from Python or the CLI (`python -m nexusagent tool run ...`).
+- Check tool availability (`Agent.has_tool()` / `ToolRegistry.has()`).
 - Configure everything through `Settings` (env vars prefixed `NEXUS_`,
   or explicit construction).
 
-None of this is a toy — every layer (Provider, Tool, Registry, Executor,
-Agent, Runtime, and all four factories) has been independently and
-thoroughly contract-tested, with explicit architecture rules preventing
+Every layer (Provider, Tool, Registry, Executor, Agent, Runtime, and all
+factories) is contract-tested, with explicit architecture rules preventing
 lower layers from depending upward on higher ones.
 
 ## What does NOT exist yet (this is the important part)
 
-**There is no autonomous agent loop.** Tool execution is 100% manual —
-a human (or calling code) has to explicitly say "run this tool with
-this input." The model/provider cannot request a tool call and have it
-executed automatically, get the result fed back, and continue reasoning.
+- **No vendor Provider adapters.** The `http` provider speaks the small
+  NexusAgent wire format (`docs/protocol.md`). Adapting OpenAI, Anthropic,
+  or a local model server means writing a thin Provider that translates
+  that API into `generate_response()` — deliberately not done yet
+  (see ADR 0002 "Consequences").
+- **No async.** The core is synchronous by design (ADR 0001); streaming
+  does not exist.
+- **No memory, planning, or multi-agent orchestration.** The loop is
+  single-turn from the caller's perspective: one input, one final answer.
+- **No automatic retries/backoff** on HTTP failures.
 
-Concretely, `Provider.generate()` still only returns a plain `str`.
-Structured response types (`TextResponse`, `ToolCallRequest`,
-`ProviderResponse`) exist in `src/nexusagent/provider.py` but are
-**not produced by any Provider and not consumed by Agent.run()**. They
-are prepared groundwork, not active behavior.
+## Next natural steps (in order)
 
-## Why it stopped here (not a bug — a deliberate blocker)
-
-Building the actual loop requires a real answer to one question first:
-
-> **What wire format will a real backend use to say "call this tool
-> with this input" instead of "here is a text answer"?**
-
-Nothing in the codebase currently defines this. `HttpProvider` only
-recognizes `{"output": "..."}`. Inventing a made-up format now would
-mean building a parser for a protocol that might not match whatever
-backend actually gets used later — pure wasted, throwaway work.
-
-**This is the single decision that unblocks everything else.**
-
-## Exact resume point — read this first when you come back
-
-1. Decide the tool-call response shape. Two real options:
-   - Design NexusAgent's own minimal format (e.g. HTTP response body
-     can contain either `{"output": "..."}` or
-     `{"tool_name": "...", "tool_input": "..."}`), and update
-     `HttpProvider` to recognize both and produce a `ToolCallRequest`
-     for the second case.
-   - Or, if you already know which real LLM API you'll actually call
-     (OpenAI, Anthropic, etc.), base the shape on that API's real
-     tool-call response format instead of inventing one.
-2. Once `HttpProvider` (or a new Provider) can genuinely produce a
-   `ToolCallRequest`, revisit whether `Agent.run()` should consume
-   `ProviderResponse` instead of a plain `str`, and design the
-   smallest clean loop: provider responds → if it's a tool call,
-   execute it via the existing `Agent.execute_tool()` → feed the
-   result back to the provider → provider responds again → repeat
-   until it's a plain text answer (with a hard iteration limit).
-3. Only after that loop exists and is tested does it make sense to
-   revisit whether `AgentResult` needs to change, whether the CLI
-   needs new flags, etc.
-
-Do not start by building loop machinery in the abstract — start by
-picking the real response shape in step 1. Everything else follows
-from that.
+1. Publish 0.4.0 to PyPI (Trusted Publishing is wired; see
+   `.github/workflows/publish.yml`).
+2. Optionally write a vendor adapter (e.g. an OpenAI-compatible
+   `generate_response()`) as a new ADR — the wire format is stable, so
+   this is now incremental work instead of a blocked decision.
+3. Revisit async/streaming only with a new ADR; do not add it ad hoc.
 
 ## How to run things
 
 ```bash
 pip install -e ".[dev]"
-python -m pytest              # run the test suite
+python -m pytest              # run the test suite (coverage reported)
 ruff check .                  # lint
 ruff format --check .         # format check
-python scripts/check.py       # full project check (used in CI-style validation)
+mypy                          # strict type check
+python scripts/check.py       # full project check (what CI runs)
 
 python -m nexusagent "your prompt here"          # run the agent
 python -m nexusagent tool list                   # list built-in tools
-python -m nexusagent tool run echo "hello"        # run a tool directly
+python -m nexusagent tool run echo "hello"       # run a tool directly
+python examples/tool_loop_demo.py                # watch the tool loop end to end
 ```

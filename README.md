@@ -2,7 +2,7 @@
 
 NexusAgent is a modular AI agent runtime. Rather than being a chatbot or a thin wrapper around a single LLM API, it provides the surrounding system an agent needs: a stable execution core (`Agent`), a pluggable model backend (`Provider`), a small set of callable capabilities (`Tools`), and an application layer that wires these together into a `Runtime`.
 
-The project is under active, incremental development. The current implementation is deliberately small: a synchronous, single-turn `Agent` around a `Provider`, plus a minimal `Tool` subsystem that can be invoked explicitly (there is currently no automatic tool selection, planning, or memory).
+The project is under active, incremental development. The current implementation is deliberately small: a synchronous `Agent` around a `Provider`, with a bounded, autonomous tool loop and a small `Tool` subsystem. There is currently no memory, planning, streaming, or multi-agent orchestration.
 
 ## Architecture
 
@@ -15,7 +15,7 @@ Factories  — construct Providers/Tools/Runtime from Settings (tool_factory, ru
              application layer) so callers don't need to assemble these pieces by hand
 ```
 
-`Runtime.run(...)` drives the Provider path; `Runtime.execute_tool(...)` explicitly invokes one named Tool. The Agent never selects or chains Tools on its own — a caller (or, at the CLI, an explicit `tool run` command) decides when to run one.
+`Runtime.run(...)` drives the full path: the Provider answers with text or requests a tool (`ToolCallRequest`), the Agent runs the requested tool and feeds the result back, and the loop repeats (bounded by `max_iterations`) until the Provider answers in plain text. `Runtime.execute_tool(...)` explicitly invokes one named Tool. The Agent never invents tool calls on its own — the Provider decides when to request one, using the tools the Agent advertises.
 
 ## Public API
 
@@ -55,7 +55,7 @@ print(result.success)  # True
 print(runtime.execute_tool("calculator", "2 + 3"))  # 5
 ```
 
-By default `create_application_runtime()` uses the deterministic, network-free `fake` provider, so this example runs with no configuration. To use the generic HTTP provider instead, pass `Settings(provider="http", endpoint=...)` — see the [Providers](#providers) section below.
+By default `create_application_runtime()` uses the deterministic, network-free `fake` provider, so this example runs with no configuration. To use the generic HTTP provider instead, pass `Settings(provider="http", endpoint=...)` — see the [Providers](#providers) section below. For an end-to-end, network-free demo of the autonomous tool loop (a local backend that requests the calculator and turns the result into a final answer), run `python examples/tool_loop_demo.py` — the wire format it speaks is documented in `docs/protocol.md`.
 
 ## Installation
 
