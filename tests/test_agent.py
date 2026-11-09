@@ -365,6 +365,11 @@ class RecordingExecutor:
 
 
 class ExplodingRegistry:
+    def list_tools(self):
+        # Since the tool loop exists, the Agent lists tools to advertise them to the
+        # provider. A text answer must still never look up or execute a tool.
+        return []
+
     def get(self, name):
         raise AssertionError("registry.get must not be called by Agent.run()")
 

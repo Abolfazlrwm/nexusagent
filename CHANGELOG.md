@@ -15,13 +15,18 @@ First release published to PyPI as [`nexusagent`](https://pypi.org/project/nexus
 
 - `py.typed` marker: the package now ships full type information for mypy/IDE users.
 - `nexusagent` console command (previously only `python -m nexusagent` was available).
-- Autonomous tool loop groundwork: `ProviderResponse` types (`TextResponse`,
-  `ToolCallRequest`) and their contract tests. *(See [Unreleased] if the tool
-  loop lands after this entry was written.)*
-- Project documentation under `docs/`: architecture, concepts, guides for
-  custom providers and tools, and ADRs for key decisions.
-- Executable examples under `examples/` (basic runtime, custom tool, tool loop,
-  local HTTP provider — all runnable offline).
+- **Autonomous tool loop**: `Provider.generate_response()` may answer with a
+  `ToolCallRequest`; the Agent runs the requested tool, feeds the `ToolResult`
+  back, and repeats until a text answer or `max_iterations` (default 10).
+  Text-only providers keep working unchanged through the default
+  implementation. The vendor-neutral HTTP wire format is documented in
+  `docs/protocol.md` (ADR 0002). Includes the deterministic, network-free
+  `ScriptedProvider` for demos and tests.
+- Project documentation under `docs/`: HTTP protocol, ADRs for key decisions
+  (sync-first core, tool-call wire format), with guides and an architecture
+  overview to follow.
+- Executable examples under `examples/` (basic runtime, custom tool, tool loop
+  demo — all runnable offline, no API keys).
 - CI: lint + format (ruff), `mypy --strict`, tests with an enforced coverage
   floor (≥95%) on Python 3.10–3.13, wheel build with a clean-venv smoke test,
   and a self-hosted coverage badge.
