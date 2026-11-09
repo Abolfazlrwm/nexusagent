@@ -5,12 +5,55 @@ on:
     branches: [main]
   pull_request:
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  test:
+  lint:
+    name: Lint & format (ruff)
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: pip install -e ".[dev]"
+
+      - name: Ruff check
+        run: ruff check src tests
+
+      - name: Ruff format check
+        run: ruff format --check src tests
+
+  typecheck:
+    name: Type check (mypy --strict)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: pip install -e ".[dev]"
+
+      - name: Mypy strict
+        run: mypy
+
+  test:
+    name: Test (py${{ matrix.python-version }}) + coverage gate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ["3.10", "3.12"]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v7
 
@@ -21,8 +64,44 @@ jobs:
       - name: Install
         run: pip install -e ".[dev]"
 
-      - name: Lint
-        run: ruff check src tests
-
-      - name: Tests
+      - name: Tests (coverage floor enforced via pyproject fail_under)
         run: pytest -q
+
+      - name: Examples run cleanly (offline)
+        if: matrix.python-version == '3.12'
+        run: |
+          python examples/basic.py
+          python examples/custom_tool.py
+
+      - name: Update coverage badge (main pushes, py3.12)
+        if: matrix.python-version == '3.12' && github.ref == 'refs/heads/main' && github.event_name == 'push'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python scripts/update_coverage_badge.py
+
+  build:
+    name: Build wheel + smoke test (clean venv)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install build tools
+        run: pip install build twine
+
+      - name: Build sdist and wheel
+        run: python -m build
+
+      - name: Twine metadata check
+        run: twine check dist/*
+
+      - name: Smoke test wheel in clean venv
+        run: |
+          python -m venv /tmp/smoke-venv
+          /tmp/smoke-venv/bin/pip install dist/nexusagent-*.whl
+          /tmp/smoke-venv/bin/python -c "import nexusagent; print('version:', nexusagent.__version__)"
+          /tmp/smoke-venv/bin/nexusagent "hello from the wheel"
+          /tmp/smoke-venv/bin/python -m nexusagent tool run calculator "2+3"
