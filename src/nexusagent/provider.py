@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 
@@ -19,11 +20,6 @@ class ProviderConfig:
         )
 
 
-class Provider(ABC):
-    @abstractmethod
-    def generate(self, prompt: str) -> str: ...
-
-
 @dataclass(frozen=True)
 class TextResponse:
     """A plain text response from a Provider."""
@@ -40,9 +36,53 @@ class ToolCallRequest:
 
 
 ProviderResponse = TextResponse | ToolCallRequest
-"""The structured response shape a Provider may eventually produce: either
-a plain text answer or a request to call a tool. Not yet part of the
-Provider.generate() contract, which continues to return a plain str."""
+"""What a Provider can answer with: either a plain text answer or a request
+to call a tool. This is what ``Provider.generate_response()`` returns and what
+the Agent's tool loop consumes."""
+
+
+@dataclass(frozen=True)
+class ToolSpec:
+    """A tool advertised to the Provider so it knows what it may request."""
+
+    name: str
+    description: str
+
+
+@dataclass(frozen=True)
+class ToolResult:
+    """The outcome of a ``ToolCallRequest``, fed back to the Provider.
+
+    ``is_error`` is True when the tool could not be run or failed; ``output``
+    then holds the error message so the model can recover or explain.
+    """
+
+    tool_name: str
+    tool_input: str
+    output: str
+    is_error: bool = False
+
+
+class Provider(ABC):
+    @abstractmethod
+    def generate(self, prompt: str) -> str: ...
+
+    def generate_response(
+        self,
+        prompt: str,
+        *,
+        tools: Sequence[ToolSpec] = (),
+        tool_results: Sequence[ToolResult] = (),
+    ) -> ProviderResponse:
+        """Return a structured response for ``prompt``.
+
+        ``tools`` lists the tools the Provider may request; ``tool_results``
+        holds the results of tool calls it already requested in this run, in
+        order. The default implementation wraps ``generate()`` and therefore
+        only ever answers with text, so text-only Providers need no changes.
+        Providers that can request tools override this method.
+        """
+        return TextResponse(self.generate(prompt))
 
 
 class ProviderError(Exception):
