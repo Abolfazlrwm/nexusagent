@@ -85,6 +85,35 @@ class Provider(ABC):
         return TextResponse(self.generate(prompt))
 
 
+class AsyncProvider(ABC):
+    """Async mirror of the sync ``Provider`` contract (ADR 0006).
+
+    Same response protocol as ``Provider`` — ``generate()`` for plain text
+    and ``generate_response()`` for the tool loop — but awaited. Implement
+    this ABC for natively async backends; wrap any sync ``Provider`` with
+    ``nexusagent.async_provider.SyncProviderAdapter`` to reuse it under
+    ``AsyncAgent`` unchanged.
+    """
+
+    @abstractmethod
+    async def generate(self, prompt: str) -> str: ...
+
+    async def generate_response(
+        self,
+        prompt: str,
+        *,
+        tools: Sequence[ToolSpec] = (),
+        tool_results: Sequence[ToolResult] = (),
+    ) -> ProviderResponse:
+        """Return a structured response for ``prompt``, awaited.
+
+        The default implementation wraps ``generate()`` and therefore only
+        ever answers with text, mirroring the sync ``Provider`` default.
+        Async providers that can request tools override this method.
+        """
+        return TextResponse(await self.generate(prompt))
+
+
 class ProviderError(Exception):
     """Base exception for provider-related failures."""
 

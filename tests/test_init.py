@@ -4,9 +4,12 @@ import nexusagent
 from nexusagent import (
     Agent,
     AgentResult,
+    AsyncAgent,
+    AsyncRuntime,
     Runtime,
     Settings,
     create_application_runtime,
+    create_async_runtime,
     create_runtime,
 )
 from nexusagent.agent import Agent as AgentFromModule
@@ -14,6 +17,9 @@ from nexusagent.agent import AgentResult as AgentResultFromModule
 from nexusagent.application import (
     create_application_runtime as create_application_runtime_from_module,
 )
+from nexusagent.async_agent import AsyncAgent as AsyncAgentFromModule
+from nexusagent.async_runtime import AsyncRuntime as AsyncRuntimeFromModule
+from nexusagent.async_runtime import create_async_runtime as create_async_runtime_from_module
 from nexusagent.config import Settings as SettingsFromModule
 from nexusagent.runtime import Runtime as RuntimeFromModule
 from nexusagent.runtime import create_runtime as create_runtime_from_module
@@ -43,6 +49,18 @@ def test_create_application_runtime_importable_from_package_root():
     assert create_application_runtime is create_application_runtime_from_module
 
 
+def test_async_agent_importable_from_package_root():
+    assert AsyncAgent is AsyncAgentFromModule
+
+
+def test_async_runtime_importable_from_package_root():
+    assert AsyncRuntime is AsyncRuntimeFromModule
+
+
+def test_create_async_runtime_importable_from_package_root():
+    assert create_async_runtime is create_async_runtime_from_module
+
+
 def test_version_unchanged():
     assert nexusagent.__version__ == importlib.metadata.version("nexusagent-runtime")
 
@@ -51,9 +69,12 @@ def test_all_contains_exactly_the_public_api():
     assert set(nexusagent.__all__) == {
         "Agent",
         "AgentResult",
+        "AsyncAgent",
+        "AsyncRuntime",
         "Runtime",
         "Settings",
         "create_application_runtime",
+        "create_async_runtime",
         "create_runtime",
     }
 
@@ -75,6 +96,10 @@ def test_public_api_does_not_expose_internal_implementation_details():
         "FakeProvider",
         "HttpProvider",
         "OpenAIProvider",
+        "AsyncProvider",
+        "SyncProviderAdapter",
+        "AsyncTool",
+        "AsyncToolExecutor",
         "create_tool_registry",
         "create_tool_runtime",
         "create_provider",
