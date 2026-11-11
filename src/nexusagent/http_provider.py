@@ -41,6 +41,46 @@ from nexusagent.provider import (
 _BODY_SNIPPET_MAX_CHARS = 200
 
 
+def post_json(
+    endpoint: str,
+    body: dict[str, object],
+    headers: dict[str, str],
+    timeout: float,
+) -> object:
+    """POST ``body`` as JSON to ``endpoint`` and return the decoded response.
+
+    This is the shared HTTP transport for the HTTP-based providers
+    (``HttpProvider`` and ``OpenAIProvider``): it encodes the body, sends the
+    request with the given headers, maps HTTP/network failures to the typed
+    provider errors (never leaking credentials), and decodes the JSON
+    response. Callers own their configuration checks and wire formats.
+    """
+    request = urllib.request.Request(
+        endpoint,
+        data=json.dumps(body).encode("utf-8"),
+        headers=headers,
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            raw = response.read()
+    except urllib.error.HTTPError as exc:
+        # Include a short snippet of the response body when available: real
+        # backends put useful context there (rate limits, auth failures, ...).
+        detail = _response_body_snippet(exc)
+        raise ProviderRequestError(f"HTTP request failed with status {exc.code}{detail}") from None
+    except urllib.error.URLError as exc:
+        raise ProviderRequestError(f"HTTP request failed: {exc.reason}") from None
+    except TimeoutError:
+        raise ProviderRequestError("HTTP request timed out") from None
+
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        raise ProviderResponseError("HTTP response was not valid JSON") from None
+
+
 def _response_body_snippet(exc: urllib.error.HTTPError) -> str:
     """Return a short, single-line snippet of an HTTP error body (best effort)."""
     try:
@@ -116,32 +156,7 @@ class HttpProvider(Provider):
         if self.config.api_key:
             headers["Authorization"] = f"Bearer {self.config.api_key}"
 
-        request = urllib.request.Request(
-            self.config.endpoint,
-            data=json.dumps(body).encode("utf-8"),
-            headers=headers,
-            method="POST",
-        )
-
-        try:
-            with urllib.request.urlopen(request, timeout=self.config.timeout) as response:
-                raw = response.read()
-        except urllib.error.HTTPError as exc:
-            # Include a short snippet of the response body when available: real
-            # backends put useful context there (rate limits, auth failures, ...).
-            detail = _response_body_snippet(exc)
-            raise ProviderRequestError(
-                f"HTTP request failed with status {exc.code}{detail}"
-            ) from None
-        except urllib.error.URLError as exc:
-            raise ProviderRequestError(f"HTTP request failed: {exc.reason}") from None
-        except TimeoutError:
-            raise ProviderRequestError("HTTP request timed out") from None
-
-        try:
-            return json.loads(raw)
-        except json.JSONDecodeError:
-            raise ProviderResponseError("HTTP response was not valid JSON") from None
+        return post_json(self.config.endpoint, body, headers, self.config.timeout)
 
     @staticmethod
     def _parse_payload(payload: object) -> ProviderResponse:

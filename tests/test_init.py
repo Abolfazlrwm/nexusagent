@@ -74,6 +74,7 @@ def test_public_api_does_not_expose_internal_implementation_details():
         "ProviderError",
         "FakeProvider",
         "HttpProvider",
+        "OpenAIProvider",
         "create_tool_registry",
         "create_tool_runtime",
         "create_provider",

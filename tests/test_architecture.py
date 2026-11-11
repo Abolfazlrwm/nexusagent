@@ -180,6 +180,25 @@ def test_fake_provider_has_no_upward_dependencies():
     assert_no_forbidden_imports("providers.py", forbidden)
 
 
+# --- Rule N — OpenAI Provider ---
+
+
+def test_openai_provider_has_no_upward_dependencies():
+    forbidden = {
+        "nexusagent.application",
+        "nexusagent.main",
+        "nexusagent.runtime",
+        "nexusagent.runtime_factory",
+        "nexusagent.tool_factory",
+        "nexusagent.tool_registry",
+        "nexusagent.tool_executor",
+        "nexusagent.tool",
+        "nexusagent.agent",
+        "nexusagent.factory",
+    }
+    assert_no_forbidden_imports("openai_provider.py", forbidden)
+
+
 # --- Rule G — Provider Factory ---
 
 
@@ -222,6 +241,7 @@ def test_runtime_does_not_construct_concrete_providers_directly():
     forbidden = {
         "nexusagent.providers",
         "nexusagent.http_provider",
+        "nexusagent.openai_provider",
     }
     assert_no_forbidden_imports("runtime.py", forbidden)
 

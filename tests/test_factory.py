@@ -2,6 +2,7 @@ import pytest
 
 from nexusagent.factory import create_provider
 from nexusagent.http_provider import HttpProvider
+from nexusagent.openai_provider import OpenAIProvider
 from nexusagent.provider import Provider, ProviderConfig, ProviderConfigurationError
 from nexusagent.providers import FakeProvider
 
@@ -48,6 +49,29 @@ def test_create_provider_http_returns_http_provider():
     provider = create_provider("http", ProviderConfig(endpoint="https://example.test"))
 
     assert isinstance(provider, HttpProvider)
+
+
+def test_create_provider_openai_returns_openai_provider():
+    provider = create_provider("openai", ProviderConfig(model="test-model"))
+
+    assert isinstance(provider, OpenAIProvider)
+
+
+def test_create_provider_passes_config_to_openai_provider():
+    config = ProviderConfig(model="test-model")
+
+    provider = create_provider("openai", config)
+
+    assert provider.config is config
+
+
+def test_create_provider_openai_does_not_perform_network_access(monkeypatch):
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("create_provider() must not perform network access")
+
+    monkeypatch.setattr("socket.socket.connect", fail_if_called)
+
+    create_provider("openai", ProviderConfig(model="test-model"))
 
 
 def test_create_provider_does_not_validate_http_config_contents():
