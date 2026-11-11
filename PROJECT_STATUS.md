@@ -6,7 +6,7 @@ where to resume without re-reading the entire history.
 
 ## Current state: WORKING and STABLE
 
-- 628 tests, all passing.
+- 716 tests, all passing.
 - `ruff check .` and `ruff format --check .` — clean.
 - `mypy --strict` — clean.
 - `pytest` enforces a coverage floor of 95% (currently ~99%).
@@ -20,8 +20,12 @@ This is a safe point to stop at. Nothing is broken or left mid-change.
 A real, working, tested agent runtime that can:
 
 - Run a prompt through a Provider (`FakeProvider`/`ScriptedProvider` for
-  offline/dev use, `HttpProvider` for a real HTTP backend) and get an
-  answer via `Agent.run()` / `Runtime.run()`.
+  offline/dev use, `HttpProvider` for a real HTTP backend, `OpenAIProvider`
+  for OpenAI-compatible APIs) and get an answer via `Agent.run()` /
+  `Runtime.run()`.
+- **Talk to OpenAI and every OpenAI-compatible server** (Ollama, LM Studio,
+  vLLM, OpenRouter, Groq, ...) with full tool calling, statelessly rehydrated
+  into the Chat Completions `messages` wire format. See ADR 0005.
 - **Run the autonomous tool loop**: the Provider can answer with a
   `ToolCallRequest` instead of text; the Agent executes the requested tool
   through the registry/executor, feeds the `ToolResult` back, and repeats
@@ -41,11 +45,10 @@ lower layers from depending upward on higher ones.
 
 ## What does NOT exist yet (this is the important part)
 
-- **No vendor Provider adapters.** The `http` provider speaks the small
-  NexusAgent wire format (`docs/protocol.md`). Adapting OpenAI, Anthropic,
-  or a local model server means writing a thin Provider that translates
-  that API into `generate_response()` — deliberately not done yet
-  (see ADR 0002 "Consequences").
+- **No native Anthropic/Gemini adapters.** The `openai` provider covers the
+  Chat Completions wire format family (ADR 0005); the vendor-neutral `http`
+  provider (`docs/protocol.md`) covers everything else. Native adapters for
+  other vendors are future work.
 - **No async.** The core is synchronous by design (ADR 0001); streaming
   does not exist.
 - **No memory, planning, or multi-agent orchestration.** The loop is
@@ -54,11 +57,9 @@ lower layers from depending upward on higher ones.
 
 ## Next natural steps (in order)
 
-1. Publish 0.4.0 to PyPI (Trusted Publishing is wired; see
-   `.github/workflows/publish.yml`).
-2. Optionally write a vendor adapter (e.g. an OpenAI-compatible
-   `generate_response()`) as a new ADR — the wire format is stable, so
-   this is now incremental work instead of a blocked decision.
+1. Release 0.5.0 (OpenAI-compatible provider) to PyPI — Trusted Publishing
+   is wired; tagging `v0.5.0` is enough.
+2. Optionally add a native Anthropic adapter following the ADR 0005 pattern.
 3. Revisit async/streaming only with a new ADR; do not add it ad hoc.
 
 ## How to run things
