@@ -11,7 +11,7 @@ import os
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
-SUPPORTED_PROVIDERS = {"fake", "http"}
+SUPPORTED_PROVIDERS = {"fake", "http", "openai"}
 
 
 @dataclass(frozen=True, repr=False)
@@ -72,10 +72,13 @@ class Settings:
         if not math.isfinite(self.timeout) or self.timeout <= 0:
             raise ValueError("Timeout must be a positive finite number")
 
-        if self.provider == "http":
-            if not self.endpoint or not self.endpoint.strip():
-                raise ValueError("HTTP provider requires an endpoint")
+        if self.provider == "http" and (not self.endpoint or not self.endpoint.strip()):
+            raise ValueError("HTTP provider requires an endpoint")
 
+        if self.provider == "openai" and self.model is None:
+            raise ValueError("OpenAI provider requires a model")
+
+        if self.endpoint is not None:
             scheme = urlparse(self.endpoint).scheme
             if scheme not in ("http", "https"):
                 raise ValueError("Endpoint must use http or https")

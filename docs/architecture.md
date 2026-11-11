@@ -24,7 +24,8 @@ flowchart TB
     subgraph L1["Provider & Tool primitives"]
         PR["provider.py (ABC, responses, errors)"]
         PV["providers.py (fake, scripted)"]
-        HP["http_provider.py"]
+        HP["http_provider.py (transport + generic wire)"]
+        OP["openai_provider.py"]
         TL["tool.py (ABC)"]
         CT["*_tool.py (built-ins)"]
         CF["config.py (Settings)"]
@@ -40,6 +41,7 @@ flowchart TB
     TRG --> TL
     PV --> PR
     HP --> PR
+    OP --> HP
     CT --> TL
 ```
 
@@ -49,7 +51,8 @@ flowchart TB
 | --- | --- |
 | `provider.py` | `Provider` ABC (`generate`, `generate_response`), response types (`TextResponse`, `ToolCallRequest`), `ToolSpec`/`ToolResult`, error hierarchy |
 | `providers.py` | `FakeProvider` (deterministic, offline) and `ScriptedProvider` (replays a fixed response script) |
-| `http_provider.py` | Vendor-neutral HTTP backend speaking the wire format in [`protocol.md`](protocol.md) |
+| `http_provider.py` | Vendor-neutral HTTP backend speaking the wire format in [`protocol.md`](protocol.md); also hosts the shared `post_json()` HTTP transport |
+| `openai_provider.py` | OpenAI-compatible Chat Completions adapter (OpenAI, Ollama, LM Studio, vLLM, ...) — rehydrates the stateless loop into `messages` (ADR 0005) |
 | `tool.py` | `Tool` ABC: `name`, `description`, `execute(input) -> str` |
 | `tool_registry.py` | Name → tool mapping; duplicate registration is an error |
 | `tool_executor.py` | Runs a tool, wraps failures in `ToolExecutionError` (original class preserved in the message) |

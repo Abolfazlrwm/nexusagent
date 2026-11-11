@@ -127,6 +127,41 @@ def test_validate_accepts_valid_http_settings():
     ).validate()
 
 
+def test_validate_accepts_valid_openai_settings():
+    Settings(provider="openai", model="gpt-4o-mini").validate()
+
+
+def test_validate_accepts_openai_without_api_key():
+    Settings(provider="openai", model="gpt-4o-mini", api_key=None).validate()
+
+
+def test_validate_accepts_openai_with_local_endpoint():
+    Settings(
+        provider="openai",
+        model="llama3",
+        endpoint="http://localhost:11434/v1/chat/completions",
+    ).validate()
+
+
+def test_validate_rejects_openai_without_model():
+    with pytest.raises(ValueError, match="OpenAI provider requires a model"):
+        Settings(provider="openai").validate()
+
+
+def test_validate_rejects_openai_with_bad_endpoint_scheme():
+    with pytest.raises(ValueError):
+        Settings(
+            provider="openai",
+            model="gpt-4o-mini",
+            endpoint="ftp://example.test",
+        ).validate()
+
+
+def test_validate_rejects_bad_scheme_for_any_provider_with_endpoint():
+    with pytest.raises(ValueError):
+        Settings(provider="fake", endpoint="file:///etc/passwd").validate()
+
+
 def test_validate_accepts_http_without_api_key():
     Settings(
         provider="http",

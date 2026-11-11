@@ -199,6 +199,24 @@ def test_create_runtime_rejects_http_without_endpoint():
         create_runtime(settings)
 
 
+def test_create_runtime_rejects_openai_without_model():
+    settings = Settings(provider="openai", model=None)
+
+    with pytest.raises(ValueError, match="OpenAI provider requires a model"):
+        create_runtime(settings)
+
+
+def test_create_runtime_wires_openai_provider():
+    from nexusagent.openai_provider import OpenAIProvider
+
+    settings = Settings(provider="openai", model="test-model")
+
+    runtime = create_runtime(settings)
+
+    assert isinstance(runtime.agent.provider, OpenAIProvider)
+    assert runtime.agent.provider.config.model == "test-model"
+
+
 def test_create_runtime_accepts_valid_configuration():
     settings = Settings(provider="http", endpoint="https://example.test/generate")
 
