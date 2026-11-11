@@ -80,6 +80,24 @@ The `Runtime` is the facade most code should hold: `run()`, `execute_tool()`,
 - `create_runtime(settings, tool_registry=None, tool_executor=None)` —
   lower-level; tools are attached only if you pass a registry/executor.
 
+## Async execution
+
+The async layer (ADR 0006) mirrors every sync contract — nothing is
+re-invented, everything is awaited:
+
+- `AsyncAgent` / `AsyncRuntime` / `create_async_runtime()`: the same bounded
+  tool loop with the same `AgentResult` and error semantics, run from a
+  live event loop.
+- `SyncProviderAdapter`: wraps any sync provider (including `openai` and
+  `http`) so it drives `AsyncAgent`; blocking calls run in worker threads
+  via `asyncio.to_thread`, so the loop never stalls.
+- `AsyncTool` + `AsyncToolExecutor`: awaited tools; plain sync tools keep
+  working alongside them in the same registry.
+
+Importing `nexusagent` never starts an event loop; concurrency happens only
+inside code you write (`asyncio.run`, web-framework handlers, ...). See the
+[async guide](guides/async.md).
+
 ## Settings
 
 `Settings` is a frozen dataclass built from `NEXUS_*` environment variables

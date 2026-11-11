@@ -8,7 +8,7 @@
 
 **A modular runtime for AI agents in Python — zero runtime dependencies, a small readable core, and an honest feature list.**
 
-Most agent frameworks hand you a galaxy of abstractions. NexusAgent is the opposite: ~500 lines of typed, contract-tested core that you can read in one sitting — providers, tools, a bounded autonomous tool loop, and a CLI. Nothing hidden, nothing magic.
+Most agent frameworks hand you a galaxy of abstractions. NexusAgent is the opposite: ~800 statements of typed, contract-tested core that you can read in one sitting — providers, tools, a bounded autonomous tool loop, an async mirror of the whole stack, and a CLI. Nothing hidden, nothing magic.
 
 ```python
 from nexusagent import create_application_runtime
@@ -28,7 +28,7 @@ print(runtime.execute_tool("calculator", "2 + 3"))  # 5
 - **Readable by design** — the core is small enough to audit in an afternoon; architecture rules are enforced by tests, not comments.
 - **Honest** — the feature list below says what exists *and what doesn't*. No fake benchmarks, no aspirational docs.
 - **Typed** — ships `py.typed`; the source itself passes `mypy --strict`.
-- **Tested** — 700+ contract tests, ≥95% coverage floor enforced in CI.
+- **Tested** — 750+ contract tests, ≥95% coverage floor enforced in CI.
 
 ## Features
 
@@ -43,7 +43,8 @@ print(runtime.execute_tool("calculator", "2 + 3"))  # 5
 | Configuration via `NEXUS_*` environment variables | ✅ |
 | CLI (`nexusagent`, `python -m nexusagent`) | ✅ |
 | Fully typed (`py.typed`), strict mypy clean | ✅ |
-| Async execution / streaming | ❌ |
+| Async execution (additive layer, same contracts) | ✅ [ADR 0006](docs/adr/0006-async-execution-model.md) |
+| Streaming responses | ❌ |
 | Memory, planning, multi-agent orchestration | ❌ |
 | Native Anthropic / Gemini adapters | ❌ |
 | Retries / backoff on HTTP failures | ❌ |
@@ -133,6 +134,31 @@ To run against a local server instead, set
 `NEXUS_ENDPOINT=http://localhost:11434/v1/chat/completions` (Ollama) and drop
 the API key. Design details: [ADR 0005](docs/adr/0005-openai-compatible-provider.md).
 
+### Async runtime
+
+The async layer mirrors the sync contracts one-to-one — `await runtime.run(...)`,
+`await runtime.execute_tool(...)`, and awaited `AsyncTool` tools. Sync providers
+(including `openai`) keep working under the event loop through a thread bridge,
+with zero runtime dependencies.
+
+```python
+import asyncio
+
+from nexusagent import create_async_runtime
+
+
+async def main() -> None:
+    runtime = create_async_runtime()  # offline `fake` provider by default
+    result = await runtime.run("Hello NexusAgent")
+    print(result.output)  # fake response: Hello NexusAgent
+
+
+asyncio.run(main())
+```
+
+Details, async tools and concurrency: [guide](docs/guides/async.md) ·
+design: [ADR 0006](docs/adr/0006-async-execution-model.md).
+
 ### CLI
 
 ```bash
@@ -158,15 +184,16 @@ All examples run offline, with no API keys:
 - [`examples/basic.py`](examples/basic.py) — smallest possible run
 - [`examples/custom_tool.py`](examples/custom_tool.py) — define and register your own tool
 - [`examples/tool_loop_demo.py`](examples/tool_loop_demo.py) — the autonomous tool loop over local HTTP
+- [`examples/async_tool_loop.py`](examples/async_tool_loop.py) — the async tool loop with an awaited tool
 - [`examples/http_provider_local.py`](examples/http_provider_local.py) — `http` provider against a local backend
 
 ## Documentation
 
 - [Architecture](docs/architecture.md) — layers, module map, dependency rules
 - [Concepts](docs/concepts.md) — Agent, Provider, Tool, Runtime, Settings
-- [Guides](docs/) — write a custom [provider](docs/guides/custom-provider.md) or [tool](docs/guides/custom-tool.md)
+- [Guides](docs/) — write a custom [provider](docs/guides/custom-provider.md), [tool](docs/guides/custom-tool.md) or [async runtime](docs/guides/async.md)
 - [HTTP protocol](docs/protocol.md) — wire format for backends
-- [ADRs](docs/adr/) — architecture decision records (0001–0005)
+- [ADRs](docs/adr/) — architecture decision records (0001–0006)
 - [Security policy](SECURITY.md) · [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md)
 
 ## Project status
