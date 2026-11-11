@@ -3,7 +3,7 @@ from nexusagent.application import create_application_runtime
 from nexusagent.config import Settings
 from nexusagent.runtime import Runtime, create_runtime
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 __all__ = [
     "Agent",

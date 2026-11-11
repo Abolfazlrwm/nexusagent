@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-11
+
+### Added
+
+- **OpenAI-compatible provider** (`NEXUS_PROVIDER=openai`,
+  `create_provider("openai", config)`) speaking the Chat Completions wire
+  format. Works with OpenAI itself and with any compatible server — Ollama,
+  LM Studio, vLLM, OpenRouter, Groq — via a `NEXUS_ENDPOINT` override
+  (see [ADR 0005](docs/adr/0005-openai-compatible-provider.md)):
+  - Stateless loop rehydration: prompt + accumulated tool results are mapped
+    to `user` / assistant `tool_calls` / `tool` messages with synthesized
+    call ids; no state survives between iterations.
+  - Full tool calling: tools are advertised as functions with a single
+    required `input` string parameter; models that pick their own single
+    parameter name are accepted. Failed tool results are fed back with an
+    `Error: ` prefix.
+  - Configuration: `model` required, `endpoint` optional (defaults to the
+    official API), `api_key` optional (local servers need none) — still
+    zero runtime dependencies, no vendor SDK.
+- Shared HTTP transport `nexusagent.http_provider.post_json()` used by both
+  HTTP-based providers; timeout handling, error mapping and key-safety are
+  defined in one place.
+- Architecture rule N (no upward dependencies for `openai_provider.py`),
+  enforced by tests like the other layer rules.
+
+### Changed
+
+- Endpoint scheme validation (`http`/`https` only) now applies to any
+  provider that sets an endpoint, not only `http`.
+- 88 new contract tests: the suite grows from 628 to 716 tests; coverage
+  rises from 99.05% to 99.21% (`openai_provider.py` itself: 100%).
+
 ## [0.4.0] - 2026-11-09
 
 First release published to PyPI as [`nexusagent-runtime`](https://pypi.org/project/nexusagent-runtime/).
