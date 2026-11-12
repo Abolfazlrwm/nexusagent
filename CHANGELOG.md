@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-12
+
+### Added
+
+- **Gemini provider** (`NEXUS_PROVIDER=gemini`,
+  `create_provider("gemini", config)`) speaking Google's Gemini
+  `generateContent` wire format. Works with Gemini itself and with
+  compatible gateways via a `NEXUS_ENDPOINT` **base URL** override — the
+  adapter appends `/v1beta/models/{model}:generateContent`
+  (see [ADR 0008](docs/adr/0008-gemini-provider.md)):
+  - Stateless loop rehydration: prompt + accumulated tool results are
+    mapped to alternating `user`/`model` turns with `functionCall` and
+    `functionResponse` parts; no state survives between iterations.
+  - Full tool calling: tools are declared with a single required `input`
+    string parameter (Gemini's uppercase Schema enums); models that pick
+    their own single parameter name are accepted. Failed tool results are
+    fed back as `{"error": ...}` inside the `functionResponse` object —
+    the wire format has no native error flag.
+  - Configuration: `model` required, `endpoint` optional (defaults to the
+    official API), `api_key` optional (sent as the `x-goog-api-key`
+    header, never a query parameter; gateways may not need one) — still
+    zero runtime dependencies, no vendor SDK.
+  - `max_tokens` is optional here (unlike Anthropic): no
+    `generationConfig` is sent by default; an explicit override must be a
+    positive integer and is sent as `generationConfig.maxOutputTokens`.
+- Shared HTTP transport `nexusagent.http_provider.post_json()` now backs
+  four HTTP-based providers; timeout handling, error mapping and
+  key-safety remain defined in one place.
+- Architecture rule T (no upward dependencies for `gemini_provider.py`),
+  enforced by tests like the other layer rules.
+
+### Changed
+
+- `NEXUS_PROVIDER=gemini` accepted by `Settings`; a model is required
+  for it, exactly like `openai` and `anthropic`.
+
+### Tests
+
+- 92 new offline contract tests: the suite grows from 854 to 946 tests;
+  coverage rises from 99.44% to 99.50% (`gemini_provider.py` itself:
+  100%).
+
 ## [0.7.0] - 2026-11-12
 
 ### Added
