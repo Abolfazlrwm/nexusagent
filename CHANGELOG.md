@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-12
+
+### Added
+
+- **Async execution layer** (ADR 0006) — additive; the sync core stays
+  first-class and unchanged:
+  - `AsyncProvider` ABC in `provider.py`, mirroring the sync `Provider`
+    contract (`generate`, `generate_response`) with awaited methods.
+  - `SyncProviderAdapter` (`nexusagent.async_provider`): runs any sync
+    provider's blocking calls in worker threads via `asyncio.to_thread`, so
+    the `fake`, `scripted`, `http` and `openai` providers drive the async
+    loop unchanged — still zero runtime dependencies, no HTTP client
+    library.
+  - `AsyncTool` ABC with `async aexecute()`; the sync path fails fast with
+    a clear `NotImplementedError` instead of leaking a coroutine.
+  - `AsyncToolExecutor`: awaits `AsyncTool` natively and runs plain sync
+    tools in a worker thread — validation and `ToolExecutionError` wrapping
+    are identical on both paths.
+  - `AsyncAgent`: awaited mirror of the bounded tool loop — same
+    `AgentResult`, same `max_iterations` bound, tool failures become error
+    results fed back to the provider.
+  - `AsyncRuntime` + `create_async_runtime()`: same facade and `NEXUS_*`
+    configuration as the sync runtime.
+- Public API additions: `AsyncAgent`, `AsyncRuntime`, `create_async_runtime`.
+- `examples/async_tool_loop.py` — offline async demo; async guide at
+  `docs/guides/async.md`; ADR 0006.
+- Architecture rules O–R pin the async modules into the same layering as
+  their sync counterparts, enforced by tests.
+- Dev-only: `pytest-asyncio` (strict mode) for the async contract tests;
+  runtime dependencies remain empty.
+
+### Changed
+
+- 50 new async contract tests: the suite grows from 716 to 766 tests;
+  coverage rises from 99.21% to 99.36% (all new async modules: 100%).
+
 ## [0.5.0] - 2026-11-11
 
 ### Added

@@ -199,6 +199,92 @@ def test_openai_provider_has_no_upward_dependencies():
     assert_no_forbidden_imports("openai_provider.py", forbidden)
 
 
+# --- Rule O — Async provider bridge ---
+
+
+def test_async_provider_has_no_upward_dependencies():
+    forbidden = {
+        "nexusagent.application",
+        "nexusagent.main",
+        "nexusagent.runtime",
+        "nexusagent.runtime_factory",
+        "nexusagent.tool_factory",
+        "nexusagent.tool_registry",
+        "nexusagent.tool_executor",
+        "nexusagent.tool",
+        "nexusagent.agent",
+        "nexusagent.async_agent",
+        "nexusagent.async_runtime",
+        "nexusagent.factory",
+        "nexusagent.providers",
+        "nexusagent.http_provider",
+        "nexusagent.openai_provider",
+    }
+    assert_no_forbidden_imports("async_provider.py", forbidden)
+
+
+# --- Rule P — Async tool executor ---
+
+
+def test_async_tool_executor_has_no_upward_dependencies():
+    forbidden = {
+        "nexusagent.application",
+        "nexusagent.main",
+        "nexusagent.runtime",
+        "nexusagent.runtime_factory",
+        "nexusagent.tool_factory",
+        "nexusagent.tool_registry",
+        "nexusagent.agent",
+        "nexusagent.async_agent",
+        "nexusagent.async_provider",
+        "nexusagent.async_runtime",
+        "nexusagent.factory",
+        "nexusagent.provider",
+        "nexusagent.providers",
+        "nexusagent.http_provider",
+        "nexusagent.openai_provider",
+    }
+    assert_no_forbidden_imports("async_tool_executor.py", forbidden)
+
+
+# --- Rule Q — Async Agent ---
+
+
+def test_async_agent_has_no_upward_dependencies():
+    forbidden = {
+        "nexusagent.application",
+        "nexusagent.main",
+        "nexusagent.runtime",
+        "nexusagent.runtime_factory",
+        "nexusagent.tool_factory",
+        "nexusagent.factory",
+        "nexusagent.providers",
+        "nexusagent.http_provider",
+        "nexusagent.openai_provider",
+        "nexusagent.async_provider",
+        "nexusagent.async_runtime",
+    }
+    assert_no_forbidden_imports("async_agent.py", forbidden)
+
+
+# --- Rule R — Async Runtime does not bypass factories or concrete providers ---
+
+
+def test_async_runtime_has_no_upward_dependencies_and_no_concrete_providers():
+    forbidden = {
+        "nexusagent.application",
+        "nexusagent.main",
+        "nexusagent.runtime",
+        "nexusagent.runtime_factory",
+        "nexusagent.tool_factory",
+        "nexusagent.tool_executor",
+        "nexusagent.providers",
+        "nexusagent.http_provider",
+        "nexusagent.openai_provider",
+    }
+    assert_no_forbidden_imports("async_runtime.py", forbidden)
+
+
 # --- Rule G — Provider Factory ---
 
 

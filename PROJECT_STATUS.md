@@ -6,10 +6,10 @@ where to resume without re-reading the entire history.
 
 ## Current state: WORKING and STABLE
 
-- 716 tests, all passing.
+- 766 tests, all passing.
 - `ruff check .` and `ruff format --check .` — clean.
 - `mypy --strict` — clean.
-- `pytest` enforces a coverage floor of 95% (currently ~99%).
+- `pytest` enforces a coverage floor of 95% (currently ~99.4%).
 - `python scripts/check.py` — passes.
 - No known bugs, no known regressions, no unfinished/half-done code.
 
@@ -32,6 +32,12 @@ A real, working, tested agent runtime that can:
   until the Provider answers in plain text (bounded by `max_iterations`,
   default 10). See `docs/adr/0002-tool-call-wire-format-and-agent-loop.md`
   and `docs/protocol.md`.
+- **Run the same runtime under asyncio** (`AsyncAgent`, `AsyncRuntime`,
+  `create_async_runtime`): the sync `Agent`/`Runtime` stay first-class, and
+  the async layer mirrors them contract-for-contract. Sync providers (fake,
+  http, openai) work under the event loop through `SyncProviderAdapter`
+  (worker threads, no new dependencies); `AsyncTool` adds awaited tools.
+  See ADR 0006 and `docs/guides/async.md`.
 - Register and run explicit, named tools (`EchoTool`, `UppercaseTool`,
   `CalculatorTool`) through `Agent.execute_tool()` / `Runtime.execute_tool()`,
   from Python or the CLI (`python -m nexusagent tool run ...`).
@@ -49,18 +55,19 @@ lower layers from depending upward on higher ones.
   Chat Completions wire format family (ADR 0005); the vendor-neutral `http`
   provider (`docs/protocol.md`) covers everything else. Native adapters for
   other vendors are future work.
-- **No async.** The core is synchronous by design (ADR 0001); streaming
-  does not exist.
+- **No streaming.** The async layer executes whole turns; token streaming
+  does not exist (see the README feature table and ADR 0006 consequences).
 - **No memory, planning, or multi-agent orchestration.** The loop is
   single-turn from the caller's perspective: one input, one final answer.
 - **No automatic retries/backoff** on HTTP failures.
 
 ## Next natural steps (in order)
 
-1. Release 0.5.0 (OpenAI-compatible provider) to PyPI — Trusted Publishing
-   is wired; tagging `v0.5.0` is enough.
+1. Release 0.6.0 (async execution layer) to PyPI — Trusted Publishing is
+   wired; tagging `v0.6.0` is enough.
 2. Optionally add a native Anthropic adapter following the ADR 0005 pattern.
-3. Revisit async/streaming only with a new ADR; do not add it ad hoc.
+3. Consider retries/backoff for HTTP providers, or streaming, each with its
+   own ADR — do not add them ad hoc.
 
 ## How to run things
 

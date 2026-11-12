@@ -15,18 +15,22 @@ flowchart TB
     end
     subgraph L3["Runtime layer"]
         RT["runtime.py"]
+        ART["async_runtime.py"]
     end
     subgraph L2["Agent layer"]
         AG["agent.py"]
+        AAG["async_agent.py"]
         TE["tool_executor.py"]
+        ATE["async_tool_executor.py"]
         TRG["tool_registry.py"]
     end
     subgraph L1["Provider & Tool primitives"]
-        PR["provider.py (ABC, responses, errors)"]
+        PR["provider.py (ABCs, responses, errors)"]
+        APV["async_provider.py (thread bridge)"]
         PV["providers.py (fake, scripted)"]
         HP["http_provider.py (transport + generic wire)"]
         OP["openai_provider.py"]
-        TL["tool.py (ABC)"]
+        TL["tool.py (Tool / AsyncTool ABCs)"]
         CT["*_tool.py (built-ins)"]
         CF["config.py (Settings)"]
         LG["logging.py"]
@@ -43,6 +47,13 @@ flowchart TB
     HP --> PR
     OP --> HP
     CT --> TL
+    ART --> AAG
+    AAG --> ATE
+    AAG --> TRG
+    AAG --> PR
+    ATE --> TL
+    ART --> APV
+    APV --> PR
 ```
 
 ## Module map
@@ -53,10 +64,14 @@ flowchart TB
 | `providers.py` | `FakeProvider` (deterministic, offline) and `ScriptedProvider` (replays a fixed response script) |
 | `http_provider.py` | Vendor-neutral HTTP backend speaking the wire format in [`protocol.md`](protocol.md); also hosts the shared `post_json()` HTTP transport |
 | `openai_provider.py` | OpenAI-compatible Chat Completions adapter (OpenAI, Ollama, LM Studio, vLLM, ...) — rehydrates the stateless loop into `messages` (ADR 0005) |
-| `tool.py` | `Tool` ABC: `name`, `description`, `execute(input) -> str` |
+| `tool.py` | `Tool` ABC (`execute(input) -> str`) and `AsyncTool` ABC (`aexecute`, ADR 0006) |
 | `tool_registry.py` | Name → tool mapping; duplicate registration is an error |
 | `tool_executor.py` | Runs a tool, wraps failures in `ToolExecutionError` (original class preserved in the message) |
 | `agent.py` | Validates input, runs the provider, executes the **bounded tool loop** |
+| `async_provider.py` | `SyncProviderAdapter`: runs any sync provider's blocking calls in worker threads under the event loop (ADR 0006) |
+| `async_tool_executor.py` | `AsyncToolExecutor`: awaits `AsyncTool` natively, runs sync tools in a worker thread |
+| `async_agent.py` | `AsyncAgent`: awaited mirror of the bounded tool loop (ADR 0006) |
+| `async_runtime.py` | `AsyncRuntime` facade + `create_async_runtime()` (ADR 0006) |
 | `runtime.py` | Facade over `Agent` (`run`, `execute_tool`, `list_tools`) + `create_runtime` |
 | `config.py` | `Settings` from `NEXUS_*` env vars; local validation, no network |
 | `factory.py` | `create_provider(name, config)` |
@@ -77,14 +92,19 @@ flowchart TB
 5. Feed `ToolResult`s back and repeat, bounded by `max_iterations`
    (default 10). Exceeding it returns a failed `AgentResult`.
 
+`AsyncAgent.run()` implements the same loop, awaited, over the
+`AsyncProvider` contract — see [ADR 0006](adr/0006-async-execution-model.md).
+
 ## Design rules
 
 - **Zero runtime dependencies.** Everything above is the standard library
-  (`urllib`, `json`, `logging`, `argparse`, `dataclasses`). See
+  (`urllib`, `json`, `logging`, `argparse`, `dataclasses`, `asyncio`). See
   [ADR 0003](adr/0003-packaging-and-publishing.md) for the packaging policy.
-- **Sync only** ([ADR 0001](adr/0001-sync-first-core.md)); no hidden I/O —
-  construction and validation never touch the network (also enforced by
-  tests that fail if a socket is opened).
+- **Sync-first with an additive async layer**
+  ([ADR 0001](adr/0001-sync-first-core.md),
+  [ADR 0006](adr/0006-async-execution-model.md)); no hidden I/O —
+  construction, validation and package import never touch the network (also
+  enforced by tests that fail if a socket is opened).
 - **Immutable data.** Results, configs, specs are frozen dataclasses.
   `Settings`/`ProviderConfig` reprs mask `api_key`.
 - **Explicit errors.** Typed exception hierarchy (`ProviderError` →
