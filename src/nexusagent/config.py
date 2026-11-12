@@ -11,7 +11,7 @@ import os
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
-SUPPORTED_PROVIDERS = {"fake", "http", "openai", "anthropic"}
+SUPPORTED_PROVIDERS = {"fake", "http", "openai", "anthropic", "gemini"}
 
 
 @dataclass(frozen=True, repr=False)
@@ -80,6 +80,9 @@ class Settings:
 
         if self.provider == "anthropic" and self.model is None:
             raise ValueError("Anthropic provider requires a model")
+
+        if self.provider == "gemini" and self.model is None:
+            raise ValueError("Gemini provider requires a model")
 
         if self.endpoint is not None:
             scheme = urlparse(self.endpoint).scheme

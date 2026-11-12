@@ -1,4 +1,5 @@
 from nexusagent.anthropic_provider import AnthropicProvider
+from nexusagent.gemini_provider import GeminiProvider
 from nexusagent.http_provider import HttpProvider
 from nexusagent.openai_provider import OpenAIProvider
 from nexusagent.provider import Provider, ProviderConfig, ProviderConfigurationError
@@ -17,5 +18,8 @@ def create_provider(name: str, config: ProviderConfig | None = None) -> Provider
 
     if name == "anthropic":
         return AnthropicProvider(config)
+
+    if name == "gemini":
+        return GeminiProvider(config)
 
     raise ProviderConfigurationError(f"Unsupported provider: {name!r}")

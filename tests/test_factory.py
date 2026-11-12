@@ -2,6 +2,7 @@ import pytest
 
 from nexusagent.anthropic_provider import AnthropicProvider
 from nexusagent.factory import create_provider
+from nexusagent.gemini_provider import GeminiProvider
 from nexusagent.http_provider import HttpProvider
 from nexusagent.openai_provider import OpenAIProvider
 from nexusagent.provider import Provider, ProviderConfig, ProviderConfigurationError
@@ -96,6 +97,29 @@ def test_create_provider_anthropic_does_not_perform_network_access(monkeypatch):
     monkeypatch.setattr("socket.socket.connect", fail_if_called)
 
     create_provider("anthropic", ProviderConfig(model="test-model"))
+
+
+def test_create_provider_gemini_returns_gemini_provider():
+    provider = create_provider("gemini", ProviderConfig(model="test-model"))
+
+    assert isinstance(provider, GeminiProvider)
+
+
+def test_create_provider_passes_config_to_gemini_provider():
+    config = ProviderConfig(model="test-model")
+
+    provider = create_provider("gemini", config)
+
+    assert provider.config is config
+
+
+def test_create_provider_gemini_does_not_perform_network_access(monkeypatch):
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("create_provider() must not perform network access")
+
+    monkeypatch.setattr("socket.socket.connect", fail_if_called)
+
+    create_provider("gemini", ProviderConfig(model="test-model"))
 
 
 def test_create_provider_does_not_validate_http_config_contents():

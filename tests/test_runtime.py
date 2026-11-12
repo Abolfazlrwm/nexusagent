@@ -235,6 +235,24 @@ def test_create_runtime_wires_anthropic_provider():
     assert runtime.agent.provider.config.model == "test-model"
 
 
+def test_create_runtime_rejects_gemini_without_model():
+    settings = Settings(provider="gemini", model=None)
+
+    with pytest.raises(ValueError, match="Gemini provider requires a model"):
+        create_runtime(settings)
+
+
+def test_create_runtime_wires_gemini_provider():
+    from nexusagent.gemini_provider import GeminiProvider
+
+    settings = Settings(provider="gemini", model="test-model")
+
+    runtime = create_runtime(settings)
+
+    assert isinstance(runtime.agent.provider, GeminiProvider)
+    assert runtime.agent.provider.config.model == "test-model"
+
+
 def test_create_runtime_accepts_valid_configuration():
     settings = Settings(provider="http", endpoint="https://example.test/generate")
 
