@@ -30,6 +30,7 @@ flowchart TB
         PV["providers.py (fake, scripted)"]
         HP["http_provider.py (transport + generic wire)"]
         OP["openai_provider.py"]
+        ANP["anthropic_provider.py"]
         TL["tool.py (Tool / AsyncTool ABCs)"]
         CT["*_tool.py (built-ins)"]
         CF["config.py (Settings)"]
@@ -46,6 +47,7 @@ flowchart TB
     PV --> PR
     HP --> PR
     OP --> HP
+    ANP --> HP
     CT --> TL
     ART --> AAG
     AAG --> ATE
@@ -64,6 +66,7 @@ flowchart TB
 | `providers.py` | `FakeProvider` (deterministic, offline) and `ScriptedProvider` (replays a fixed response script) |
 | `http_provider.py` | Vendor-neutral HTTP backend speaking the wire format in [`protocol.md`](protocol.md); also hosts the shared `post_json()` HTTP transport |
 | `openai_provider.py` | OpenAI-compatible Chat Completions adapter (OpenAI, Ollama, LM Studio, vLLM, ...) — rehydrates the stateless loop into `messages` (ADR 0005) |
+| `anthropic_provider.py` | Anthropic-compatible Messages adapter (Anthropic, gateways, ...) — rehydrates the stateless loop into `tool_use`/`tool_result` blocks (ADR 0007) |
 | `tool.py` | `Tool` ABC (`execute(input) -> str`) and `AsyncTool` ABC (`aexecute`, ADR 0006) |
 | `tool_registry.py` | Name → tool mapping; duplicate registration is an error |
 | `tool_executor.py` | Runs a tool, wraps failures in `ToolExecutionError` (original class preserved in the message) |

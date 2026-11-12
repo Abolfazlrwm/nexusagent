@@ -28,7 +28,7 @@ print(runtime.execute_tool("calculator", "2 + 3"))  # 5
 - **Readable by design** — the core is small enough to audit in an afternoon; architecture rules are enforced by tests, not comments.
 - **Honest** — the feature list below says what exists *and what doesn't*. No fake benchmarks, no aspirational docs.
 - **Typed** — ships `py.typed`; the source itself passes `mypy --strict`.
-- **Tested** — 750+ contract tests, ≥95% coverage floor enforced in CI.
+- **Tested** — 850+ contract tests, ≥95% coverage floor enforced in CI.
 
 ## Features
 
@@ -37,6 +37,7 @@ print(runtime.execute_tool("calculator", "2 + 3"))  # 5
 | Provider abstraction (bring any backend) | ✅ |
 | Autonomous tool loop, bounded by `max_iterations` | ✅ |
 | OpenAI-compatible adapter (OpenAI, Ollama, LM Studio, vLLM, …) | ✅ [ADR 0005](docs/adr/0005-openai-compatible-provider.md) |
+| Anthropic-compatible adapter (Anthropic, gateways, …) | ✅ [ADR 0007](docs/adr/0007-anthropic-compatible-provider.md) |
 | Vendor-neutral HTTP wire protocol | ✅ [docs/protocol.md](docs/protocol.md) |
 | Built-in tools: `echo`, `uppercase`, `calculator` | ✅ |
 | Custom tools / custom providers via small ABCs | ✅ [guides](docs/) |
@@ -46,7 +47,7 @@ print(runtime.execute_tool("calculator", "2 + 3"))  # 5
 | Async execution (additive layer, same contracts) | ✅ [ADR 0006](docs/adr/0006-async-execution-model.md) |
 | Streaming responses | ❌ |
 | Memory, planning, multi-agent orchestration | ❌ |
-| Native Anthropic / Gemini adapters | ❌ |
+| Native Gemini adapter | ❌ |
 | Retries / backoff on HTTP failures | ❌ |
 
 ## Architecture
@@ -55,7 +56,7 @@ print(runtime.execute_tool("calculator", "2 + 3"))  # 5
 flowchart LR
     U["your code / CLI"] --> R["Runtime"]
     R --> A["Agent"]
-    A -- "generate_response()" --> P["Provider<br/>(fake · scripted · http · openai)"]
+    A -- "generate_response()" --> P["Provider<br/>(fake · scripted · http · openai · anthropic)"]
     P -- "TextResponse" --> A
     P -- "ToolCallRequest" --> A
     A --> X["ToolExecutor"]
@@ -134,6 +135,26 @@ To run against a local server instead, set
 `NEXUS_ENDPOINT=http://localhost:11434/v1/chat/completions` (Ollama) and drop
 the API key. Design details: [ADR 0005](docs/adr/0005-openai-compatible-provider.md).
 
+### Anthropic-compatible providers
+
+The `anthropic` provider speaks the Anthropic Messages wire format — Anthropic
+itself, plus compatible gateways. Tool calling works end to end: tools are
+advertised with a JSON Schema of a single `input` string parameter, and results
+(including errors, via the native `is_error` flag) are fed back to the model.
+Zero dependencies — no vendor SDK.
+
+```bash
+export NEXUS_PROVIDER=anthropic
+export NEXUS_MODEL=claude-sonnet-4-5
+export NEXUS_API_KEY=sk-ant-...    # required by the official API
+nexusagent "What is 19 + 23?"
+```
+
+To run against a compatible gateway instead, set
+`NEXUS_ENDPOINT=https://your-gateway.example/v1/messages`. The wire format
+requires `max_tokens` on every request; NexusAgent sends 1024 by default.
+Design details: [ADR 0007](docs/adr/0007-anthropic-compatible-provider.md).
+
 ### Async runtime
 
 The async layer mirrors the sync contracts one-to-one — `await runtime.run(...)`,
@@ -171,10 +192,10 @@ nexusagent tool run calculator "2 + 3"
 
 | Variable | Meaning | Default |
 | --- | --- | --- |
-| `NEXUS_PROVIDER` | `fake`, `http` or `openai` | `fake` |
-| `NEXUS_ENDPOINT` | HTTP/OpenAI provider URL (optional for `openai`) | — |
-| `NEXUS_MODEL` | model identifier passed to the provider (required for `openai`) | — |
-| `NEXUS_API_KEY` | sent as `Bearer` token (never logged, masked in reprs) | — |
+| `NEXUS_PROVIDER` | `fake`, `http`, `openai` or `anthropic` | `fake` |
+| `NEXUS_ENDPOINT` | HTTP/OpenAI/Anthropic provider URL (optional for `openai`/`anthropic`) | — |
+| `NEXUS_MODEL` | model identifier passed to the provider (required for `openai`/`anthropic`) | — |
+| `NEXUS_API_KEY` | sent as `Bearer` token (OpenAI) or `x-api-key` (Anthropic); never logged, masked in reprs | — |
 | `NEXUS_TIMEOUT` | HTTP timeout in seconds | `30` |
 
 ## Examples
