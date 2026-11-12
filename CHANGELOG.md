@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-12
+
+### Added
+
+- **Anthropic-compatible provider** (`NEXUS_PROVIDER=anthropic`,
+  `create_provider("anthropic", config)`) speaking the Anthropic Messages
+  wire format. Works with Anthropic itself and with compatible gateways
+  via a `NEXUS_ENDPOINT` override
+  (see [ADR 0007](docs/adr/0007-anthropic-compatible-provider.md)):
+  - Stateless loop rehydration: prompt + accumulated tool results are
+    mapped to alternating `user`/`assistant` turns with `tool_use` and
+    `tool_result` content blocks and synthesized call ids; no state
+    survives between iterations.
+  - Full tool calling: tools are advertised with a JSON Schema of a single
+    required `input` string parameter; models that pick their own single
+    parameter name are accepted. Failed tool results are fed back through
+    the native `is_error` flag of `tool_result`.
+  - Configuration: `model` required, `endpoint` optional (defaults to the
+    official API), `api_key` optional (sent as `x-api-key`; gateways may
+    not need one) — still zero runtime dependencies, no vendor SDK.
+  - `max_tokens` (required by the wire format) defaults to 1024 and can be
+    overridden per provider instance with a positive integer.
+- Shared HTTP transport `nexusagent.http_provider.post_json()` now backs
+  three HTTP-based providers; timeout handling, error mapping and
+  key-safety remain defined in one place.
+- Architecture rule S (no upward dependencies for `anthropic_provider.py`),
+  enforced by tests like the other layer rules.
+
+### Changed
+
+- `NEXUS_PROVIDER=anthropic` accepted by `Settings`; a model is required
+  for it, exactly like `openai`.
+
+### Tests
+
+- 88 new offline contract tests: the suite grows from 766 to 854 tests;
+  coverage rises from 99.36% to 99.44% (`anthropic_provider.py` itself:
+  100%).
+
 ## [0.6.0] - 2026-11-12
 
 ### Added

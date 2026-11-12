@@ -199,6 +199,25 @@ def test_openai_provider_has_no_upward_dependencies():
     assert_no_forbidden_imports("openai_provider.py", forbidden)
 
 
+# --- Rule S — Anthropic Provider ---
+
+
+def test_anthropic_provider_has_no_upward_dependencies():
+    forbidden = {
+        "nexusagent.application",
+        "nexusagent.main",
+        "nexusagent.runtime",
+        "nexusagent.runtime_factory",
+        "nexusagent.tool_factory",
+        "nexusagent.tool_registry",
+        "nexusagent.tool_executor",
+        "nexusagent.tool",
+        "nexusagent.agent",
+        "nexusagent.factory",
+    }
+    assert_no_forbidden_imports("anthropic_provider.py", forbidden)
+
+
 # --- Rule O — Async provider bridge ---
 
 
@@ -219,6 +238,7 @@ def test_async_provider_has_no_upward_dependencies():
         "nexusagent.providers",
         "nexusagent.http_provider",
         "nexusagent.openai_provider",
+        "nexusagent.anthropic_provider",
     }
     assert_no_forbidden_imports("async_provider.py", forbidden)
 
@@ -243,6 +263,7 @@ def test_async_tool_executor_has_no_upward_dependencies():
         "nexusagent.providers",
         "nexusagent.http_provider",
         "nexusagent.openai_provider",
+        "nexusagent.anthropic_provider",
     }
     assert_no_forbidden_imports("async_tool_executor.py", forbidden)
 
@@ -262,6 +283,7 @@ def test_async_agent_has_no_upward_dependencies():
         "nexusagent.http_provider",
         "nexusagent.openai_provider",
         "nexusagent.async_provider",
+        "nexusagent.anthropic_provider",
         "nexusagent.async_runtime",
     }
     assert_no_forbidden_imports("async_agent.py", forbidden)
@@ -281,6 +303,7 @@ def test_async_runtime_has_no_upward_dependencies_and_no_concrete_providers():
         "nexusagent.providers",
         "nexusagent.http_provider",
         "nexusagent.openai_provider",
+        "nexusagent.anthropic_provider",
     }
     assert_no_forbidden_imports("async_runtime.py", forbidden)
 
@@ -328,6 +351,7 @@ def test_runtime_does_not_construct_concrete_providers_directly():
         "nexusagent.providers",
         "nexusagent.http_provider",
         "nexusagent.openai_provider",
+        "nexusagent.anthropic_provider",
     }
     assert_no_forbidden_imports("runtime.py", forbidden)
 

@@ -157,6 +157,36 @@ def test_validate_rejects_openai_with_bad_endpoint_scheme():
         ).validate()
 
 
+def test_validate_accepts_valid_anthropic_settings():
+    Settings(provider="anthropic", model="claude-sonnet-4-5").validate()
+
+
+def test_validate_accepts_anthropic_without_api_key():
+    Settings(provider="anthropic", model="claude-sonnet-4-5", api_key=None).validate()
+
+
+def test_validate_accepts_anthropic_with_local_endpoint():
+    Settings(
+        provider="anthropic",
+        model="claude-sonnet-4-5",
+        endpoint="http://localhost:8080/v1/messages",
+    ).validate()
+
+
+def test_validate_rejects_anthropic_without_model():
+    with pytest.raises(ValueError, match="Anthropic provider requires a model"):
+        Settings(provider="anthropic").validate()
+
+
+def test_validate_rejects_anthropic_with_bad_endpoint_scheme():
+    with pytest.raises(ValueError):
+        Settings(
+            provider="anthropic",
+            model="claude-sonnet-4-5",
+            endpoint="ftp://example.test",
+        ).validate()
+
+
 def test_validate_rejects_bad_scheme_for_any_provider_with_endpoint():
     with pytest.raises(ValueError):
         Settings(provider="fake", endpoint="file:///etc/passwd").validate()
