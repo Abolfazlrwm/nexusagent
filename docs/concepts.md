@@ -89,8 +89,8 @@ re-invented, everything is awaited:
   tool loop with the same `AgentResult` and error semantics, run from a
   live event loop.
 - `SyncProviderAdapter`: wraps any sync provider (including `openai`,
-  `anthropic` and `http`) so it drives `AsyncAgent`; blocking calls run in worker threads
-  via `asyncio.to_thread`, so the loop never stalls.
+  `anthropic`, `gemini` and `http`) so it drives `AsyncAgent`; blocking calls
+  run in worker threads via `asyncio.to_thread`, so the loop never stalls.
 - `AsyncTool` + `AsyncToolExecutor`: awaited tools; plain sync tools keep
   working alongside them in the same registry.
 

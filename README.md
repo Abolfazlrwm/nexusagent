@@ -28,7 +28,7 @@ print(runtime.execute_tool("calculator", "2 + 3"))  # 5
 - **Readable by design** — the core is small enough to audit in an afternoon; architecture rules are enforced by tests, not comments.
 - **Honest** — the feature list below says what exists *and what doesn't*. No fake benchmarks, no aspirational docs.
 - **Typed** — ships `py.typed`; the source itself passes `mypy --strict`.
-- **Tested** — 850+ contract tests, ≥95% coverage floor enforced in CI.
+- **Tested** — 940+ contract tests, ≥95% coverage floor enforced in CI.
 
 ## Features
 
@@ -38,6 +38,7 @@ print(runtime.execute_tool("calculator", "2 + 3"))  # 5
 | Autonomous tool loop, bounded by `max_iterations` | ✅ |
 | OpenAI-compatible adapter (OpenAI, Ollama, LM Studio, vLLM, …) | ✅ [ADR 0005](docs/adr/0005-openai-compatible-provider.md) |
 | Anthropic-compatible adapter (Anthropic, gateways, …) | ✅ [ADR 0007](docs/adr/0007-anthropic-compatible-provider.md) |
+| Gemini adapter (Google Gemini, gateways, …) | ✅ [ADR 0008](docs/adr/0008-gemini-provider.md) |
 | Vendor-neutral HTTP wire protocol | ✅ [docs/protocol.md](docs/protocol.md) |
 | Built-in tools: `echo`, `uppercase`, `calculator` | ✅ |
 | Custom tools / custom providers via small ABCs | ✅ [guides](docs/) |
@@ -47,7 +48,6 @@ print(runtime.execute_tool("calculator", "2 + 3"))  # 5
 | Async execution (additive layer, same contracts) | ✅ [ADR 0006](docs/adr/0006-async-execution-model.md) |
 | Streaming responses | ❌ |
 | Memory, planning, multi-agent orchestration | ❌ |
-| Native Gemini adapter | ❌ |
 | Retries / backoff on HTTP failures | ❌ |
 
 ## Architecture
@@ -56,7 +56,7 @@ print(runtime.execute_tool("calculator", "2 + 3"))  # 5
 flowchart LR
     U["your code / CLI"] --> R["Runtime"]
     R --> A["Agent"]
-    A -- "generate_response()" --> P["Provider<br/>(fake · scripted · http · openai · anthropic)"]
+    A -- "generate_response()" --> P["Provider<br/>(fake · scripted · http · openai · anthropic · gemini)"]
     P -- "TextResponse" --> A
     P -- "ToolCallRequest" --> A
     A --> X["ToolExecutor"]
@@ -155,6 +155,28 @@ To run against a compatible gateway instead, set
 requires `max_tokens` on every request; NexusAgent sends 1024 by default.
 Design details: [ADR 0007](docs/adr/0007-anthropic-compatible-provider.md).
 
+### Gemini provider
+
+The `gemini` provider speaks Google's Gemini `generateContent` wire format —
+Gemini itself, plus compatible gateways. Tool calling works end to end: tools
+are declared with a single `input` string parameter (Gemini's uppercase Schema
+enums), and results (including errors, fed back inside the `functionResponse`
+object) are given back to the model. Zero dependencies — no vendor SDK.
+
+```bash
+export NEXUS_PROVIDER=gemini
+export NEXUS_MODEL=gemini-2.5-flash
+export NEXUS_API_KEY=...           # required by the official API
+nexusagent "What is 19 + 23?"
+```
+
+To run against a compatible gateway instead, set `NEXUS_ENDPOINT` to the
+server's **base URL** — the adapter appends
+`/v1beta/models/{model}:generateContent`. Unlike the Anthropic wire format,
+`max_tokens` is optional here; when set explicitly it is sent as
+`generationConfig.maxOutputTokens`. Design details:
+[ADR 0008](docs/adr/0008-gemini-provider.md).
+
 ### Async runtime
 
 The async layer mirrors the sync contracts one-to-one — `await runtime.run(...)`,
@@ -192,10 +214,10 @@ nexusagent tool run calculator "2 + 3"
 
 | Variable | Meaning | Default |
 | --- | --- | --- |
-| `NEXUS_PROVIDER` | `fake`, `http`, `openai` or `anthropic` | `fake` |
-| `NEXUS_ENDPOINT` | HTTP/OpenAI/Anthropic provider URL (optional for `openai`/`anthropic`) | — |
-| `NEXUS_MODEL` | model identifier passed to the provider (required for `openai`/`anthropic`) | — |
-| `NEXUS_API_KEY` | sent as `Bearer` token (OpenAI) or `x-api-key` (Anthropic); never logged, masked in reprs | — |
+| `NEXUS_PROVIDER` | `fake`, `http`, `openai`, `anthropic` or `gemini` | `fake` |
+| `NEXUS_ENDPOINT` | HTTP/OpenAI/Anthropic provider URL; API base for `gemini` (model appended) | — |
+| `NEXUS_MODEL` | model identifier passed to the provider (required for `openai`/`anthropic`/`gemini`) | — |
+| `NEXUS_API_KEY` | sent as `Bearer` (OpenAI), `x-api-key` (Anthropic) or `x-goog-api-key` (Gemini); never logged, masked in reprs | — |
 | `NEXUS_TIMEOUT` | HTTP timeout in seconds | `30` |
 
 ## Examples
@@ -214,7 +236,7 @@ All examples run offline, with no API keys:
 - [Concepts](docs/concepts.md) — Agent, Provider, Tool, Runtime, Settings
 - [Guides](docs/) — write a custom [provider](docs/guides/custom-provider.md), [tool](docs/guides/custom-tool.md) or [async runtime](docs/guides/async.md)
 - [HTTP protocol](docs/protocol.md) — wire format for backends
-- [ADRs](docs/adr/) — architecture decision records (0001–0006)
+- [ADRs](docs/adr/) — architecture decision records (0001–0008)
 - [Security policy](SECURITY.md) · [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md)
 
 ## Project status

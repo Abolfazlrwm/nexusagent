@@ -22,7 +22,8 @@ A real, working, tested agent runtime that can:
 - Run a prompt through a Provider (`FakeProvider`/`ScriptedProvider` for
   offline/dev use, `HttpProvider` for a real HTTP backend, `OpenAIProvider`
   for OpenAI-compatible APIs, `AnthropicProvider` for Anthropic-compatible
-  APIs) and get an answer via `Agent.run()` / `Runtime.run()`.
+  APIs, `GeminiProvider` for Gemini) and get an answer via `Agent.run()` /
+  `Runtime.run()`.
 - **Talk to OpenAI and every OpenAI-compatible server** (Ollama, LM Studio,
   vLLM, OpenRouter, Groq, ...) with full tool calling, statelessly rehydrated
   into the Chat Completions `messages` wire format. See ADR 0005.
@@ -30,6 +31,10 @@ A real, working, tested agent runtime that can:
   tool calling, statelessly rehydrated into the Messages `tool_use` /
   `tool_result` block wire format, with native `is_error` feedback. See
   ADR 0007.
+- **Talk to Google Gemini and every Gemini-compatible gateway** with full
+  tool calling, statelessly rehydrated into the `generateContent`
+  `functionCall` / `functionResponse` parts, with structured error feedback
+  inside the response object. See ADR 0008.
 - **Run the autonomous tool loop**: the Provider can answer with a
   `ToolCallRequest` instead of text; the Agent executes the requested tool
   through the registry/executor, feeds the `ToolResult` back, and repeats
@@ -39,7 +44,7 @@ A real, working, tested agent runtime that can:
 - **Run the same runtime under asyncio** (`AsyncAgent`, `AsyncRuntime`,
   `create_async_runtime`): the sync `Agent`/`Runtime` stay first-class, and
   the async layer mirrors them contract-for-contract. Sync providers (fake,
-  http, openai, anthropic) work under the event loop through `SyncProviderAdapter`
+  http, openai, anthropic, gemini) work under the event loop through `SyncProviderAdapter`
   (worker threads, no new dependencies); `AsyncTool` adds awaited tools.
   See ADR 0006 and `docs/guides/async.md`.
 - Register and run explicit, named tools (`EchoTool`, `UppercaseTool`,
@@ -55,11 +60,11 @@ lower layers from depending upward on higher ones.
 
 ## What does NOT exist yet (this is the important part)
 
-- **No native Gemini adapter.** The `openai` provider covers the Chat
-  Completions wire format family (ADR 0005) and the `anthropic` provider
-  covers the Messages wire format family (ADR 0007); the vendor-neutral
-  `http` provider (`docs/protocol.md`) covers everything else. Native
-  adapters for other vendors are future work.
+- **No further native vendor adapters.** The three dominant wire-format
+  families are covered: Chat Completions (ADR 0005), Messages (ADR 0007)
+  and generateContent (ADR 0008); the vendor-neutral `http` provider
+  (`docs/protocol.md`) covers everything else. Native adapters for other
+  vendors are future work.
 - **No streaming.** The async layer executes whole turns; token streaming
   does not exist (see the README feature table and ADR 0006 consequences).
 - **No memory, planning, or multi-agent orchestration.** The loop is
@@ -68,11 +73,10 @@ lower layers from depending upward on higher ones.
 
 ## Next natural steps (in order)
 
-1. Release 0.6.0 (async execution layer) to PyPI — Trusted Publishing is
-   wired; tagging `v0.6.0` is enough.
-2. Optionally add a native Anthropic adapter following the ADR 0005 pattern.
-3. Consider retries/backoff for HTTP providers, or streaming, each with its
-   own ADR — do not add them ad hoc.
+1. Release 0.8.0 (Gemini provider) to PyPI — Trusted Publishing is wired;
+   tagging `v0.8.0` is enough.
+2. Consider streaming responses, or retries/backoff for HTTP providers,
+   each with its own ADR — do not add them ad hoc.
 
 ## How to run things
 
