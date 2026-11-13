@@ -187,6 +187,36 @@ def test_validate_rejects_anthropic_with_bad_endpoint_scheme():
         ).validate()
 
 
+def test_validate_accepts_valid_gemini_settings():
+    Settings(provider="gemini", model="gemini-2.5-flash").validate()
+
+
+def test_validate_accepts_gemini_without_api_key():
+    Settings(provider="gemini", model="gemini-2.5-flash", api_key=None).validate()
+
+
+def test_validate_accepts_gemini_with_gateway_endpoint():
+    Settings(
+        provider="gemini",
+        model="gemini-2.5-flash",
+        endpoint="http://localhost:8080",
+    ).validate()
+
+
+def test_validate_rejects_gemini_without_model():
+    with pytest.raises(ValueError, match="Gemini provider requires a model"):
+        Settings(provider="gemini").validate()
+
+
+def test_validate_rejects_gemini_with_bad_endpoint_scheme():
+    with pytest.raises(ValueError):
+        Settings(
+            provider="gemini",
+            model="gemini-2.5-flash",
+            endpoint="ftp://example.test",
+        ).validate()
+
+
 def test_validate_rejects_bad_scheme_for_any_provider_with_endpoint():
     with pytest.raises(ValueError):
         Settings(provider="fake", endpoint="file:///etc/passwd").validate()
