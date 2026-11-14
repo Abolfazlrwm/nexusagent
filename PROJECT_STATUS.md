@@ -6,10 +6,10 @@ where to resume without re-reading the entire history.
 
 ## Current state: WORKING and STABLE
 
-- 766 tests, all passing.
+- 1098 tests, all passing.
 - `ruff check .` and `ruff format --check .` — clean.
 - `mypy --strict` — clean.
-- `pytest` enforces a coverage floor of 95% (currently ~99.4%).
+- `pytest` enforces a coverage floor of 95% (currently ~99.85%).
 - `python scripts/check.py` — passes.
 - No known bugs, no known regressions, no unfinished/half-done code.
 
@@ -47,6 +47,13 @@ A real, working, tested agent runtime that can:
   http, openai, anthropic, gemini) work under the event loop through `SyncProviderAdapter`
   (worker threads, no new dependencies); `AsyncTool` adds awaited tools.
   See ADR 0006 and `docs/guides/async.md`.
+- **Stream responses as they are generated** (ADR 0009): every HTTP adapter
+  (`openai`, `anthropic`, `gemini`) speaks its wire format's SSE mode
+  through the shared `post_sse()` transport; `Agent.run(..., on_delta=...)`
+  and `AsyncAgent.run(..., on_delta=...)` forward text fragments as they
+  arrive (tool calling fully supported while streaming), `nexusagent
+  --stream` streams in the terminal, and providers that cannot stream keep
+  working unchanged (the callback simply never fires).
 - Register and run explicit, named tools (`EchoTool`, `UppercaseTool`,
   `CalculatorTool`) through `Agent.execute_tool()` / `Runtime.execute_tool()`,
   from Python or the CLI (`python -m nexusagent tool run ...`).
@@ -64,19 +71,18 @@ lower layers from depending upward on higher ones.
   families are covered: Chat Completions (ADR 0005), Messages (ADR 0007)
   and generateContent (ADR 0008); the vendor-neutral `http` provider
   (`docs/protocol.md`) covers everything else. Native adapters for other
-  vendors are future work.
-- **No streaming.** The async layer executes whole turns; token streaming
-  does not exist (see the README feature table and ADR 0006 consequences).
+  vendors are future work. The `http` wire protocol has no streaming mode
+  of its own yet.
 - **No memory, planning, or multi-agent orchestration.** The loop is
   single-turn from the caller's perspective: one input, one final answer.
 - **No automatic retries/backoff** on HTTP failures.
 
 ## Next natural steps (in order)
 
-1. Release 0.8.0 (Gemini provider) to PyPI — Trusted Publishing is wired;
-   tagging `v0.8.0` is enough.
-2. Consider streaming responses, or retries/backoff for HTTP providers,
-   each with its own ADR — do not add them ad hoc.
+1. Release 0.9.0 (streaming responses) to PyPI — Trusted Publishing is
+   wired; tagging `v0.9.0` is enough.
+2. Consider retries/backoff for HTTP providers, or in-process memory
+   between runs, each with its own ADR — do not add them ad hoc.
 
 ## How to run things
 
@@ -89,7 +95,9 @@ mypy                          # strict type check
 python scripts/check.py       # full project check (what CI runs)
 
 python -m nexusagent "your prompt here"          # run the agent
+python -m nexusagent --stream "your prompt here" # stream text as it is generated
 python -m nexusagent tool list                   # list built-in tools
 python -m nexusagent tool run echo "hello"       # run a tool directly
 python examples/tool_loop_demo.py                # watch the tool loop end to end
+python examples/streaming.py                     # watch streamed text arrive
 ```

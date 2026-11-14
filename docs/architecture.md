@@ -25,10 +25,10 @@ flowchart TB
         TRG["tool_registry.py"]
     end
     subgraph L1["Provider & Tool primitives"]
-        PR["provider.py (ABCs, responses, errors)"]
+        PR["provider.py (ABCs, responses, stream types, errors)"]
         APV["async_provider.py (thread bridge)"]
         PV["providers.py (fake, scripted)"]
-        HP["http_provider.py (transport + generic wire)"]
+        HP["http_provider.py (transport: post_json + post_sse + generic wire)"]
         OP["openai_provider.py"]
         ANP["anthropic_provider.py"]
         GNP["gemini_provider.py"]
@@ -64,12 +64,12 @@ flowchart TB
 
 | Module | Responsibility |
 | --- | --- |
-| `provider.py` | `Provider` ABC (`generate`, `generate_response`), response types (`TextResponse`, `ToolCallRequest`), `ToolSpec`/`ToolResult`, error hierarchy |
+| `provider.py` | `Provider` ABC (`generate`, `generate_response`, `stream_response`), response types (`TextResponse`, `ToolCallRequest`, `StreamTextDelta`), `ToolSpec`/`ToolResult`, error hierarchy |
 | `providers.py` | `FakeProvider` (deterministic, offline) and `ScriptedProvider` (replays a fixed response script) |
-| `http_provider.py` | Vendor-neutral HTTP backend speaking the wire format in [`protocol.md`](protocol.md); also hosts the shared `post_json()` HTTP transport |
-| `openai_provider.py` | OpenAI-compatible Chat Completions adapter (OpenAI, Ollama, LM Studio, vLLM, ...) — rehydrates the stateless loop into `messages` (ADR 0005) |
-| `anthropic_provider.py` | Anthropic-compatible Messages adapter (Anthropic, gateways, ...) — rehydrates the stateless loop into `tool_use`/`tool_result` blocks (ADR 0007) |
-| `gemini_provider.py` | Gemini adapter (`generateContent` wire format; Gemini and gateways) — rehydrates the stateless loop into `functionCall`/`functionResponse` parts (ADR 0008) |
+| `http_provider.py` | Vendor-neutral HTTP backend speaking the wire format in [`protocol.md`](protocol.md); also hosts the shared `post_json()` and `post_sse()` transports (ADR 0009) |
+| `openai_provider.py` | OpenAI-compatible Chat Completions adapter (OpenAI, Ollama, LM Studio, vLLM, ...) — rehydrates the stateless loop into `messages` (ADR 0005); streams `chat.completion.chunk` SSE deltas (ADR 0009) |
+| `anthropic_provider.py` | Anthropic-compatible Messages adapter (Anthropic, gateways, ...) — rehydrates the stateless loop into `tool_use`/`tool_result` blocks (ADR 0007); streams typed SSE events (ADR 0009) |
+| `gemini_provider.py` | Gemini adapter (`generateContent` wire format; Gemini and gateways) — rehydrates the stateless loop into `functionCall`/`functionResponse` parts (ADR 0008); streams `:streamGenerateContent?alt=sse` (ADR 0009) |
 | `tool.py` | `Tool` ABC (`execute(input) -> str`) and `AsyncTool` ABC (`aexecute`, ADR 0006) |
 | `tool_registry.py` | Name → tool mapping; duplicate registration is an error |
 | `tool_executor.py` | Runs a tool, wraps failures in `ToolExecutionError` (original class preserved in the message) |
@@ -100,6 +100,20 @@ flowchart TB
 
 `AsyncAgent.run()` implements the same loop, awaited, over the
 `AsyncProvider` contract — see [ADR 0006](adr/0006-async-execution-model.md).
+
+## Streaming (ADR 0009)
+
+With `Agent.run(input, on_delta=...)` the loop consumes
+`Provider.stream_response()` instead of `generate_response()`: the provider
+yields zero or more `StreamTextDelta` fragments as text arrives, then the
+usual final `ProviderResponse` the loop consumes. `on_delta` fires with
+every fragment (including text emitted before a tool request);
+`AgentResult.output` still carries only the final answer. The default
+`stream_response()` on both ABCs delegates to `generate_response()` and
+yields the single complete event, so providers that cannot stream need no
+changes and callers that pass no callback see no behavior change. The SSE
+parsing lives in the shared `post_sse()` transport next to `post_json()`;
+each adapter maps its own wire's delta events onto the contract.
 
 ## Design rules
 
