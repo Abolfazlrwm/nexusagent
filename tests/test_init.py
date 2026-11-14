@@ -65,44 +65,39 @@ def test_version_unchanged():
     assert nexusagent.__version__ == importlib.metadata.version("nexusagent-runtime")
 
 
-def test_all_contains_exactly_the_public_api():
-    assert set(nexusagent.__all__) == {
-        "Agent",
-        "AgentResult",
-        "AsyncAgent",
-        "AsyncRuntime",
-        "Runtime",
-        "Settings",
-        "create_application_runtime",
-        "create_async_runtime",
-        "create_runtime",
-    }
+def test_all_surface_is_pinned_elsewhere():
+    """The exact __all__ surface is pinned by tests/test_public_api.py (ADR 0010).
+
+    Since 1.0 the top-level facade IS the full public API; the single source
+    of truth for its exact contents lives in test_public_api.py.
+    """
+    assert len(nexusagent.__all__) > 0
+    assert all(isinstance(name, str) for name in nexusagent.__all__)
 
 
 def test_public_api_does_not_expose_internal_implementation_details():
+    """Vendor adapters, built-in demo tools and internal factories stay internal.
+
+    ADR 0010: since 1.0 the top-level package exposes the full stable public
+    API, but the concrete wire adapters (constructed via ``create_provider``
+    or ``Settings``), the built-in demo tools and the internal tool factories
+    are deliberately NOT re-exported at the top level.
+    """
     exposed = set(dir(nexusagent))
 
     internal_only = {
-        "ToolRegistry",
-        "ToolExecutor",
-        "ToolExecutionError",
-        "Tool",
+        # Built-in demo tools (users register their own Tool subclasses)
         "EchoTool",
         "UppercaseTool",
         "CalculatorTool",
-        "Provider",
-        "ProviderConfig",
-        "ProviderError",
-        "FakeProvider",
+        # Wire adapters — construct via create_provider() / Settings
         "HttpProvider",
         "OpenAIProvider",
-        "AsyncProvider",
-        "SyncProviderAdapter",
-        "AsyncTool",
-        "AsyncToolExecutor",
+        "AnthropicProvider",
+        "GeminiProvider",
+        # Internal factories layered under the public runtime factories
         "create_tool_registry",
         "create_tool_runtime",
-        "create_provider",
     }
 
     assert not (exposed & internal_only)
