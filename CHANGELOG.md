@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-11-14
+
+### Added
+
+- **Stable public API under SemVer** (ADR 0010) — 1.0 declares the
+  package root as the complete, versioned public surface. Nothing in
+  `nexusagent.__all__` is renamed, moved or removed within major
+  version 1; additions are minor versions; removals require a new
+  major preceded by a documented deprecation release.
+  - The top-level facade grows from the minimal 9-name pre-1.0 surface
+    to the full 33-name contract: `Agent`, `AgentResult`, `AsyncAgent`,
+    `Runtime`, `AsyncRuntime`, `create_runtime`, `create_async_runtime`,
+    `create_application_runtime`, `create_provider`, `Settings`,
+    `Provider`, `AsyncProvider`, `ProviderConfig`, `TextResponse`,
+    `ToolCallRequest`, `StreamTextDelta`, `ProviderResponse`,
+    `ProviderStreamEvent`, `ToolSpec`, `ToolResult`, `FakeProvider`,
+    `ScriptedProvider`, `SyncProviderAdapter`, `Tool`, `AsyncTool`,
+    `ToolRegistry`, `ToolExecutor`, `AsyncToolExecutor`,
+    `ProviderError`, `ProviderConfigurationError`, `ProviderRequestError`,
+    `ProviderResponseError`, `ToolExecutionError` — every name
+    importable as `nexusagent.<name>`. All existing submodule imports
+    keep working unchanged; nothing was removed or renamed.
+  - Vendor wire adapters (`HttpProvider`, `OpenAIProvider`,
+    `AnthropicProvider`, `GeminiProvider`), the built-in demo tools and
+    the internal factories stay deliberately off the root — constructed
+    via `create_provider()` / `Settings` / a registry. Zero runtime
+    dependencies and the Python 3.10–3.13 support matrix are part of
+    the contract.
+  - `tests/test_public_api.py` pins the surface exactly (contents and
+    order), verifies every name resolves at the root, verifies every
+    export is defined inside the package (union-type aliases resolve to
+    their member classes), and pins the version format — an accidental
+    removal, rename or silent addition fails CI.
+- ADR 0010, README stability sections, architecture rule update,
+  concepts "Public API surface" reference, PROJECT_STATUS 1.0 snapshot.
+
+### Tests
+
+- 5 new public-surface tests: the suite grows from 1098 to 1103 tests;
+  coverage stays at 99.85%.
+
 ## [0.9.0] - 2026-11-14
 
 ### Added
@@ -296,7 +337,8 @@ The **import name** remains `nexusagent`.
   variables, and the factory layer (`create_runtime`,
   `create_application_runtime`).
 
-[Unreleased]: https://github.com/Abolfazlrwm/nexusagent/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/Abolfazlrwm/nexusagent/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/Abolfazlrwm/nexusagent/compare/v0.9.0...v1.0.0
 [0.9.0]: https://github.com/Abolfazlrwm/nexusagent/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/Abolfazlrwm/nexusagent/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/Abolfazlrwm/nexusagent/compare/v0.6.0...v0.7.0
