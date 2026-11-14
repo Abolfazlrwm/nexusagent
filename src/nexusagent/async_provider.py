@@ -13,12 +13,14 @@ sync contract in :mod:`nexusagent.provider`) directly.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Sequence
+from collections.abc import AsyncIterator, Sequence
+from typing import cast
 
 from nexusagent.provider import (
     AsyncProvider,
     Provider,
     ProviderResponse,
+    ProviderStreamEvent,
     TextResponse,
     ToolResult,
     ToolSpec,
@@ -57,3 +59,37 @@ class SyncProviderAdapter(AsyncProvider):
             generate_response, prompt, tools=tools, tool_results=tool_results
         )
         return response
+
+    async def stream_response(
+        self,
+        prompt: str,
+        *,
+        tools: Sequence[ToolSpec] = (),
+        tool_results: Sequence[ToolResult] = (),
+    ) -> AsyncIterator[ProviderStreamEvent]:
+        """Bridge the wrapped provider's stream into the event loop (ADR 0009).
+
+        Streaming sync providers are consumed one event at a time in worker
+        threads through ``asyncio.to_thread``, so the loop keeps yielding
+        without stalling; providers without their own ``stream_response()``
+        fall back to the complete ``generate_response()`` answer as a
+        single event.
+        """
+        stream = getattr(self._provider, "stream_response", None)
+        if stream is None:
+            generate_response = getattr(self._provider, "generate_response", None)
+            if generate_response is None:
+                yield TextResponse(await asyncio.to_thread(self._provider.generate, prompt))
+                return
+            yield await asyncio.to_thread(
+                generate_response, prompt, tools=tools, tool_results=tool_results
+            )
+            return
+
+        iterator = stream(prompt, tools=tools, tool_results=tool_results)
+        sentinel = object()
+        while True:
+            event = await asyncio.to_thread(next, iterator, sentinel)
+            if event is sentinel:
+                return
+            yield cast("ProviderStreamEvent", event)

@@ -9,6 +9,8 @@ backend works under the event loop unchanged (ADR 0006).
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from nexusagent.agent import AgentResult
 from nexusagent.async_agent import AsyncAgent
 from nexusagent.async_provider import SyncProviderAdapter
@@ -33,8 +35,15 @@ class AsyncRuntime:
         self.tool_registry = tool_registry
         self.tool_executor = tool_executor
 
-    async def run(self, input_text: str) -> AgentResult:
-        return await self.agent.run(input_text)
+    async def run(
+        self, input_text: str, *, on_delta: Callable[[str], None] | None = None
+    ) -> AgentResult:
+        """Run the agent; with ``on_delta``, forward streamed text fragments.
+
+        See :meth:`nexusagent.async_agent.AsyncAgent.run` for the streaming
+        contract.
+        """
+        return await self.agent.run(input_text, on_delta=on_delta)
 
     async def execute_tool(self, tool_name: str, input_data: str) -> str:
         return await self.agent.execute_tool(tool_name, input_data)

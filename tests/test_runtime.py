@@ -129,14 +129,16 @@ def test_runtime_delegates_to_agent():
     expected_result = AgentResult(output="recorded", success=True)
 
     class RecordingAgent(Agent):
-        def run(self, input_text: str) -> AgentResult:
+        def run(self, input_text: str, **kwargs: object) -> AgentResult:
             calls["input_text"] = input_text
+            calls["on_delta"] = kwargs.get("on_delta")
             return expected_result
 
     runtime = Runtime(RecordingAgent(FakeProvider()))
     result = runtime.run("hello")
 
     assert calls["input_text"] == "hello"
+    assert calls["on_delta"] is None
     assert result is expected_result
 
 
@@ -144,7 +146,7 @@ def test_runtime_run_forwards_input_with_surrounding_whitespace_unchanged():
     calls = {}
 
     class RecordingAgent(Agent):
-        def run(self, input_text: str) -> AgentResult:
+        def run(self, input_text: str, **kwargs: object) -> AgentResult:
             calls["input_text"] = input_text
             return AgentResult(output="ok", success=True)
 

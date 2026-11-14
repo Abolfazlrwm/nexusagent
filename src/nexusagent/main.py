@@ -55,6 +55,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(prog="nexusagent")
     parser.add_argument("input_text", help="input text to run through the agent")
     parser.add_argument("--provider", help="provider to use (overrides NEXUS_PROVIDER)")
+    parser.add_argument(
+        "--stream",
+        action="store_true",
+        help="print provider text as it is generated (streaming backends only)",
+    )
     args = parser.parse_args(argv)
 
     settings = Settings.from_env()
@@ -67,9 +72,21 @@ def main() -> None:
         print(f"nexusagent: error: {exc}", file=sys.stderr)
         sys.exit(1)
 
-    result = runtime.run(args.input_text)
+    printed_delta = False
+
+    def _print_delta(delta: str) -> None:
+        nonlocal printed_delta
+        printed_delta = True
+        print(delta, end="", flush=True)
+
+    result = runtime.run(args.input_text, on_delta=_print_delta if args.stream else None)
+
     if not result.success:
         print(f"nexusagent: error: {result.output}", file=sys.stderr)
         sys.exit(1)
 
-    print(result.output)
+    if args.stream and printed_delta:
+        # The answer was already printed fragment by fragment; close the line.
+        print()
+    else:
+        print(result.output)

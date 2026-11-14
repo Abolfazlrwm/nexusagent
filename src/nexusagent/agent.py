@@ -13,12 +13,15 @@ keep the agent running forever. Explicit ``execute_tool()`` remains available.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from nexusagent.logging import get_logger
 from nexusagent.provider import (
     Provider,
     ProviderResponse,
+    ProviderResponseError,
+    StreamTextDelta,
     TextResponse,
     ToolCallRequest,
     ToolResult,
@@ -59,13 +62,23 @@ class Agent:
         self.tool_executor = tool_executor
         self.max_iterations = max_iterations
 
-    def run(self, input_text: str) -> AgentResult:
+    def run(self, input_text: str, *, on_delta: Callable[[str], None] | None = None) -> AgentResult:
         """Run the agent on the given input and return an AgentResult.
 
         If the Provider requests tools and this Agent has a ToolRegistry and a
         ToolExecutor, the requested tools are executed and their results are
         fed back to the Provider until it returns a plain text answer or
         ``max_iterations`` provider calls have been made.
+
+        When ``on_delta`` is given, the provider's ``stream_response()`` is
+        used and ``on_delta`` is called with every streamed text fragment as
+        it arrives — including text the model emits before requesting a tool
+        — while ``AgentResult.output`` still carries only the final answer.
+        Callbacks fire only when the backend actually streams; providers
+        without incremental output simply never call ``on_delta``. An
+        exception raised by ``on_delta`` aborts the run and is reported like
+        a provider error. Without ``on_delta`` the non-streaming
+        ``generate_response()`` path is used, unchanged.
         """
         if not isinstance(input_text, str):
             raise TypeError("input_text must be a string")
@@ -79,7 +92,12 @@ class Agent:
 
         for iteration in range(1, self.max_iterations + 1):
             try:
-                response = self._ask_provider(input_text, tools, tuple(tool_results))
+                if on_delta is None:
+                    response = self._ask_provider(input_text, tools, tuple(tool_results))
+                else:
+                    response = self._stream_provider_response(
+                        input_text, tools, tuple(tool_results), on_delta
+                    )
             except Exception as exc:  # noqa: BLE001
                 return AgentResult(output=f"provider error: {exc}", success=False)
 
@@ -148,6 +166,32 @@ class Agent:
             input_text, tools=tools, tool_results=tool_results
         )
         return response
+
+    def _stream_provider_response(
+        self,
+        input_text: str,
+        tools: tuple[ToolSpec, ...],
+        tool_results: tuple[ToolResult, ...],
+        on_delta: Callable[[str], None],
+    ) -> ProviderResponse:
+        """Collect one streamed provider response, forwarding text deltas.
+
+        Falls back to the plain ``generate_response()`` path for providers
+        that do not implement ``stream_response()`` at all; ``on_delta``
+        then stays silent. The stream's final event is the iteration's
+        response; a stream that ends without one is an error.
+        """
+        stream = getattr(self.provider, "stream_response", None)
+        if stream is None:
+            return self._ask_provider(input_text, tools, tool_results)
+
+        for event in stream(input_text, tools=tools, tool_results=tool_results):
+            if isinstance(event, StreamTextDelta):
+                on_delta(event.text)
+            elif isinstance(event, (TextResponse, ToolCallRequest)):
+                return event
+
+        raise ProviderResponseError("provider stream ended without a final response")
 
     def _tool_specs(self) -> tuple[ToolSpec, ...]:
         assert self.tool_registry is not None

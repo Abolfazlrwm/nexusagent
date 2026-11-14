@@ -16,14 +16,21 @@ Response  a JSON object that is exactly one of::
 
     {"output": "<text answer>"}
     {"tool_name": "<tool>", "tool_input": "<input for the tool>"}
+
+This module also hosts the shared streaming transport ``post_sse()``: the
+HTTP-based providers request SSE streams (ADR 0009) through it, so header
+handling, error mapping and timeout semantics stay defined in one place
+next to ``post_json()``.
 """
 
 from __future__ import annotations
 
+import http.client
 import json
 import urllib.error
 import urllib.request
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
+from typing import Any
 
 from nexusagent.provider import (
     Provider,
@@ -39,6 +46,8 @@ from nexusagent.provider import (
 )
 
 _BODY_SNIPPET_MAX_CHARS = 200
+_SSE_DATA_FIELD = "data:"
+_SSE_ACCEPT_VALUE = "text/event-stream"
 
 
 def post_json(
@@ -95,6 +104,75 @@ def _response_body_snippet(exc: urllib.error.HTTPError) -> str:
     if len(snippet) > _BODY_SNIPPET_MAX_CHARS:
         snippet = snippet[:_BODY_SNIPPET_MAX_CHARS] + "..."
     return f": {snippet}"
+
+
+def post_sse(
+    endpoint: str,
+    body: dict[str, object],
+    headers: dict[str, str],
+    timeout: float,
+) -> Iterator[str]:
+    """POST ``body`` as JSON to ``endpoint`` and stream back SSE data payloads.
+
+    This is the shared streaming transport for the HTTP-based providers
+    (ADR 0009): it encodes the body, sends the request with
+    ``Accept: text/event-stream`` plus the given headers, and parses the
+    response as a Server-Sent Events stream. It yields the raw data payload
+    string of each event in arrival order; multi-line ``data:`` fields are
+    joined with newlines, while event names, ids, retries and comment lines
+    are ignored — the JSON payloads of the supported wire formats carry
+    their own event types. Network and HTTP failures map to the same typed
+    provider errors as ``post_json()``; a mid-stream failure surfaces as
+    ``ProviderRequestError`` during iteration. Callers own their
+    configuration checks and wire formats.
+    """
+    request = urllib.request.Request(
+        endpoint,
+        data=json.dumps(body).encode("utf-8"),
+        headers={"Accept": _SSE_ACCEPT_VALUE, **headers},
+        method="POST",
+    )
+
+    try:
+        response = urllib.request.urlopen(request, timeout=timeout)
+    except urllib.error.HTTPError as exc:
+        detail = _response_body_snippet(exc)
+        raise ProviderRequestError(f"HTTP request failed with status {exc.code}{detail}") from None
+    except urllib.error.URLError as exc:
+        raise ProviderRequestError(f"HTTP request failed: {exc.reason}") from None
+    except TimeoutError:
+        raise ProviderRequestError("HTTP request timed out") from None
+
+    return _iter_sse_data(response)
+
+
+def _iter_sse_data(response: Any) -> Iterator[str]:
+    """Parse an open HTTP response as SSE and yield its ``data`` payloads."""
+    data_lines: list[str] = []
+    try:
+        with response:
+            for raw_line in response:
+                line = raw_line.decode("utf-8", errors="replace").rstrip("\r\n")
+                if line.startswith(":"):
+                    continue  # SSE comment lines are keep-alives, not events
+
+                if not line:
+                    if data_lines:
+                        yield "\n".join(data_lines)
+                        data_lines = []
+                    continue
+
+                if line.startswith(_SSE_DATA_FIELD):
+                    value = line[len(_SSE_DATA_FIELD) :]
+                    if value.startswith(" "):
+                        value = value[1:]
+                    data_lines.append(value)
+                # other SSE fields (event, id, retry) carry nothing we need
+
+            if data_lines:  # flush a final event not terminated by a blank line
+                yield "\n".join(data_lines)
+    except (http.client.HTTPException, OSError, TimeoutError) as exc:
+        raise ProviderRequestError(f"HTTP stream failed: {exc}") from None
 
 
 class HttpProvider(Provider):
