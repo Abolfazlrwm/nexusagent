@@ -35,16 +35,19 @@ system prompt (ADR 0008).
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+import json
+from collections.abc import Iterator, Sequence
 from typing import Any
 
-from nexusagent.http_provider import post_json
+from nexusagent.http_provider import post_json, post_sse
 from nexusagent.provider import (
     Provider,
     ProviderConfig,
     ProviderConfigurationError,
     ProviderResponse,
     ProviderResponseError,
+    ProviderStreamEvent,
+    StreamTextDelta,
     TextResponse,
     ToolCallRequest,
     ToolResult,
@@ -54,6 +57,8 @@ from nexusagent.provider import (
 DEFAULT_ENDPOINT = "https://generativelanguage.googleapis.com"
 _API_VERSION = "v1beta"
 _GENERATE_ACTION = ":generateContent"
+_STREAM_ACTION = ":streamGenerateContent"
+_SSE_QUERY = "alt=sse"
 
 _TOOL_INPUT_KEY = "input"
 _RESULT_KEY = "result"
@@ -125,10 +130,10 @@ def _contents_for(prompt: str, tool_results: Sequence[ToolResult]) -> list[dict[
     return contents
 
 
-def _request_url(endpoint: str | None, model: str) -> str:
-    """Compose the generateContent URL from the endpoint base and model id."""
+def _request_url(endpoint: str | None, model: str, action: str = _GENERATE_ACTION) -> str:
+    """Compose a generateContent-family URL from the endpoint base and model id."""
     base = (endpoint or DEFAULT_ENDPOINT).rstrip("/")
-    return f"{base}/{_API_VERSION}/models/{model}{_GENERATE_ACTION}"
+    return f"{base}/{_API_VERSION}/models/{model}{action}"
 
 
 def _extract_tool_input(arguments: dict[str, Any]) -> str:
@@ -290,6 +295,127 @@ class GeminiProvider(Provider):
         endpoint = _request_url(self.config.endpoint, self.config.model)
         payload = post_json(endpoint, body, headers, self.config.timeout)
         return _parse_response(payload)
+
+    def stream_response(
+        self,
+        prompt: str,
+        *,
+        tools: Sequence[ToolSpec] = (),
+        tool_results: Sequence[ToolResult] = (),
+    ) -> Iterator[ProviderStreamEvent]:
+        """Stream the response for ``prompt`` over the SSE wire format.
+
+        Requests ``:streamGenerateContent?alt=sse`` and yields
+        ``StreamTextDelta`` events as text parts arrive, then one final
+        ``ProviderResponse``: the first ``functionCall`` if one was
+        streamed, otherwise the joined text. Configuration errors raise
+        when the method is called; network and protocol errors surface
+        while the returned iterator is consumed.
+        """
+        self._validate_config()
+        return self._stream_events(prompt, tools, tool_results)
+
+    def _stream_events(
+        self,
+        prompt: str,
+        tools: Sequence[ToolSpec],
+        tool_results: Sequence[ToolResult],
+    ) -> Iterator[ProviderStreamEvent]:
+        body: dict[str, object] = {"contents": _contents_for(prompt, tool_results)}
+
+        if tools:
+            body["tools"] = _tools_to_wire(tools)
+
+        if self.max_tokens is not None:
+            body["generationConfig"] = {"maxOutputTokens": self.max_tokens}
+
+        headers = {"Content-Type": "application/json"}
+        if self.config.api_key:
+            headers["x-goog-api-key"] = self.config.api_key
+
+        # _validate_config() guarantees a non-empty model; narrow for the URL.
+        assert self.config.model is not None
+        stream_path = _request_url(self.config.endpoint, self.config.model, _STREAM_ACTION)
+        endpoint = f"{stream_path}?{_SSE_QUERY}"
+        text_parts: list[str] = []
+        tool_name: str | None = None
+        tool_arguments: dict[str, Any] | None = None
+
+        for data in post_sse(endpoint, body, headers, self.config.timeout):
+            try:
+                chunk = json.loads(data)
+            except json.JSONDecodeError:
+                raise ProviderResponseError("Gemini stream event was not valid JSON") from None
+
+            if not isinstance(chunk, dict):
+                raise ProviderResponseError("Gemini stream event must be a JSON object")
+
+            if "error" in chunk:
+                error = chunk["error"]
+                message = error.get("message") if isinstance(error, dict) else None
+                if not isinstance(message, str):
+                    message = json.dumps(error)
+                raise ProviderResponseError(f"Gemini stream error: {message}")
+
+            candidates = chunk.get("candidates")
+            if not isinstance(candidates, list) or not candidates:
+                continue  # usage-only and keep-alive chunks carry no content
+
+            candidate = candidates[0]
+            if not isinstance(candidate, dict):
+                continue
+
+            content = candidate.get("content")
+            if not isinstance(content, dict):
+                continue
+
+            parts = content.get("parts")
+            if not isinstance(parts, list):
+                continue
+
+            for part in parts:
+                if not isinstance(part, dict):
+                    continue
+
+                if "text" in part:
+                    text = part["text"]
+                    if not isinstance(text, str):
+                        raise ProviderResponseError("Gemini text part must hold a string 'text'")
+                    text_parts.append(text)
+                    yield StreamTextDelta(text)
+                elif "functionCall" in part and tool_name is None:
+                    # Only the first functionCall is consumed; later calls are
+                    # re-requested by the model in the next loop iteration.
+                    call = part["functionCall"]
+                    if not isinstance(call, dict):
+                        raise ProviderResponseError("Gemini functionCall part must hold an object")
+
+                    name = call.get("name")
+                    if not isinstance(name, str) or not name.strip():
+                        raise ProviderResponseError(
+                            "Gemini functionCall must have a non-empty 'name'"
+                        )
+
+                    arguments = call.get("args")
+                    if not isinstance(arguments, dict):
+                        raise ProviderResponseError(
+                            "Gemini functionCall must have an 'args' object"
+                        )
+
+                    tool_name = name
+                    tool_arguments = arguments
+
+        if tool_name is not None and tool_arguments is not None:
+            yield ToolCallRequest(
+                tool_name=tool_name, tool_input=_extract_tool_input(tool_arguments)
+            )
+            return
+
+        text = "".join(text_parts)
+        if not text.strip():
+            raise ProviderResponseError("Gemini stream ended without text or a tool call")
+
+        yield TextResponse(text)
 
     def _validate_config(self) -> None:
         if not self.config.model or not self.config.model.strip():

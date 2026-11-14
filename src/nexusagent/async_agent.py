@@ -10,12 +10,16 @@ the other (ADR 0006).
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from nexusagent.agent import DEFAULT_MAX_ITERATIONS, AgentResult
 from nexusagent.async_tool_executor import AsyncToolExecutor
 from nexusagent.logging import get_logger
 from nexusagent.provider import (
     AsyncProvider,
     ProviderResponse,
+    ProviderResponseError,
+    StreamTextDelta,
     TextResponse,
     ToolCallRequest,
     ToolResult,
@@ -53,12 +57,21 @@ class AsyncAgent:
         self.tool_executor = tool_executor
         self.max_iterations = max_iterations
 
-    async def run(self, input_text: str) -> AgentResult:
+    async def run(
+        self, input_text: str, *, on_delta: Callable[[str], None] | None = None
+    ) -> AgentResult:
         """Run the agent on the given input and return an ``AgentResult``.
 
         Semantics mirror the sync ``Agent.run()``: tools are advertised,
         ``ToolCallRequest``s are executed and their results fed back until a
         plain text answer or ``max_iterations`` provider calls.
+
+        With ``on_delta``, the provider's ``stream_response()`` is consumed
+        and ``on_delta`` fires with every streamed text fragment as it
+        arrives (mirroring the sync contract, including text emitted before
+        a tool request); ``AgentResult.output`` still carries only the
+        final answer. Without ``on_delta`` the plain awaited
+        ``generate_response()`` path is used, unchanged.
         """
         if not isinstance(input_text, str):
             raise TypeError("input_text must be a string")
@@ -72,7 +85,12 @@ class AsyncAgent:
 
         for iteration in range(1, self.max_iterations + 1):
             try:
-                response = await self._ask_provider(input_text, tools, tuple(tool_results))
+                if on_delta is None:
+                    response = await self._ask_provider(input_text, tools, tuple(tool_results))
+                else:
+                    response = await self._stream_provider_response(
+                        input_text, tools, tuple(tool_results), on_delta
+                    )
             except Exception as exc:  # noqa: BLE001
                 return AgentResult(output=f"provider error: {exc}", success=False)
 
@@ -131,6 +149,29 @@ class AsyncAgent:
             input_text, tools=tools, tool_results=tool_results
         )
         return response
+
+    async def _stream_provider_response(
+        self,
+        input_text: str,
+        tools: tuple[ToolSpec, ...],
+        tool_results: tuple[ToolResult, ...],
+        on_delta: Callable[[str], None],
+    ) -> ProviderResponse:
+        """Collect one streamed provider response, forwarding text deltas.
+
+        Mirrors the sync ``Agent._stream_provider_response()`` over the
+        async ``stream_response()`` contract (ADR 0006/0009). A stream that
+        ends without a final response is an error.
+        """
+        async for event in self.provider.stream_response(
+            input_text, tools=tools, tool_results=tool_results
+        ):
+            if isinstance(event, StreamTextDelta):
+                on_delta(event.text)
+            else:
+                return event
+
+        raise ProviderResponseError("provider stream ended without a final response")
 
     def _tool_specs(self) -> tuple[ToolSpec, ...]:
         assert self.tool_registry is not None

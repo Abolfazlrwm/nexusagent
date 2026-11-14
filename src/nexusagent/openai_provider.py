@@ -25,16 +25,18 @@ one and react.
 from __future__ import annotations
 
 import json
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from typing import Any
 
-from nexusagent.http_provider import post_json
+from nexusagent.http_provider import post_json, post_sse
 from nexusagent.provider import (
     Provider,
     ProviderConfig,
     ProviderConfigurationError,
     ProviderResponse,
     ProviderResponseError,
+    ProviderStreamEvent,
+    StreamTextDelta,
     TextResponse,
     ToolCallRequest,
     ToolResult,
@@ -190,6 +192,101 @@ def _parse_text(message: dict[str, Any]) -> TextResponse:
     return TextResponse(content)
 
 
+def _parse_stream_chunk(payload: object) -> dict[str, Any]:
+    """Validate one streamed ``chat.completion.chunk`` JSON object."""
+    if not isinstance(payload, dict):
+        raise ProviderResponseError("OpenAI stream chunk must be a JSON object")
+
+    if "error" in payload:
+        error = payload["error"]
+        message = error.get("message") if isinstance(error, dict) else None
+        if not isinstance(message, str):
+            message = json.dumps(error)
+        raise ProviderResponseError(f"OpenAI stream error: {message}")
+
+    return payload
+
+
+def _delta_of(chunk: dict[str, Any]) -> dict[str, Any] | None:
+    """Return the first choice's ``delta``, or None for empty/keep-alive chunks."""
+    choices = chunk.get("choices")
+    if not isinstance(choices, list) or not choices:
+        return None
+
+    first_choice = choices[0]
+    if not isinstance(first_choice, dict):
+        return None
+
+    delta = first_choice.get("delta")
+    if not isinstance(delta, dict):
+        return None
+
+    return delta
+
+
+class _ToolCallAccumulator:
+    """Accumulate the first streamed tool call of one iteration.
+
+    OpenAI streams tool calls as ``delta.tool_calls`` fragments keyed by an
+    ``index``; only the first index is tracked — additional parallel calls
+    are dropped, matching the single-request-per-iteration shape of the
+    non-streaming parser (the Agent feeds the result back and the model
+    re-requests any further tools in the next iteration).
+    """
+
+    def __init__(self) -> None:
+        self.index: int | None = None
+        self.name: str | None = None
+        self.arguments: str = ""
+
+    def absorb(self, fragments: object) -> None:
+        if not isinstance(fragments, list):
+            raise ProviderResponseError("OpenAI stream 'tool_calls' must be a list")
+
+        for fragment in fragments:
+            if not isinstance(fragment, dict):
+                raise ProviderResponseError("OpenAI stream tool call must be an object")
+
+            index = fragment.get("index")
+            if not isinstance(index, int) or isinstance(index, bool):
+                index = 0
+
+            if self.index is None:
+                self.index = index
+            elif index != self.index:
+                continue  # additional parallel calls are not consumed here
+
+            function = fragment.get("function")
+            if not isinstance(function, dict):
+                raise ProviderResponseError("OpenAI stream tool call is missing 'function'")
+
+            name = function.get("name")
+            if isinstance(name, str) and self.name is None:
+                self.name = name
+
+            arguments = function.get("arguments")
+            if arguments is not None:
+                if not isinstance(arguments, str):
+                    raise ProviderResponseError(
+                        "OpenAI stream tool call 'arguments' must be a string"
+                    )
+                self.arguments += arguments
+
+    def to_request(self) -> ToolCallRequest:
+        if self.name is None or not self.name.strip():
+            raise ProviderResponseError("OpenAI stream tool call must have a non-empty 'name'")
+
+        try:
+            arguments: object = json.loads(self.arguments) if self.arguments.strip() else {}
+        except json.JSONDecodeError:
+            raise ProviderResponseError("tool call arguments were not valid JSON") from None
+
+        if not isinstance(arguments, dict):
+            raise ProviderResponseError("tool call arguments must be a JSON object")
+
+        return ToolCallRequest(tool_name=self.name, tool_input=_extract_tool_input(arguments))
+
+
 class OpenAIProvider(Provider):
     """A provider that talks to OpenAI-compatible Chat Completions APIs.
 
@@ -242,6 +339,80 @@ class OpenAIProvider(Provider):
         endpoint = self.config.endpoint or DEFAULT_ENDPOINT
         payload = post_json(endpoint, body, headers, self.config.timeout)
         return _parse_response(payload)
+
+    def stream_response(
+        self,
+        prompt: str,
+        *,
+        tools: Sequence[ToolSpec] = (),
+        tool_results: Sequence[ToolResult] = (),
+    ) -> Iterator[ProviderStreamEvent]:
+        """Stream the response for ``prompt`` over the SSE wire format.
+
+        Requests ``stream: true`` and yields ``StreamTextDelta`` events as
+        text fragments arrive, then one final ``ProviderResponse`` carrying
+        the complete accumulated answer. Configuration errors raise when
+        the method is called; network and protocol errors surface while the
+        returned iterator is consumed.
+        """
+        self._validate_config()
+        return self._stream_events(prompt, tools, tool_results)
+
+    def _stream_events(
+        self,
+        prompt: str,
+        tools: Sequence[ToolSpec],
+        tool_results: Sequence[ToolResult],
+    ) -> Iterator[ProviderStreamEvent]:
+        body: dict[str, object] = {
+            "model": self.config.model,
+            "messages": _messages_for(prompt, tool_results),
+            "stream": True,
+        }
+
+        if tools:
+            body["tools"] = _tools_to_wire(tools)
+
+        headers = {"Content-Type": "application/json"}
+        if self.config.api_key:
+            headers["Authorization"] = f"Bearer {self.config.api_key}"
+
+        endpoint = self.config.endpoint or DEFAULT_ENDPOINT
+        text_parts: list[str] = []
+        tool_call = _ToolCallAccumulator()
+
+        for data in post_sse(endpoint, body, headers, self.config.timeout):
+            if data.strip() == "[DONE]":
+                break
+
+            try:
+                chunk = json.loads(data)
+            except json.JSONDecodeError:
+                raise ProviderResponseError("OpenAI stream event was not valid JSON") from None
+
+            delta = _delta_of(_parse_stream_chunk(chunk))
+            if delta is None:
+                continue
+
+            content = delta.get("content")
+            if isinstance(content, str) and content:
+                text_parts.append(content)
+                yield StreamTextDelta(content)
+
+            tool_calls = delta.get("tool_calls")
+            if tool_calls:
+                tool_call.absorb(tool_calls)
+
+        if tool_call.index is not None:
+            # Tool call fragments arrived; the accumulator validates the name.
+            yield tool_call.to_request()
+            return
+
+        text = "".join(text_parts)
+        if not text.strip():
+            raise ProviderResponseError("OpenAI stream ended without text or a tool call")
+
+        yield TextResponse(text)
 
     def _validate_config(self) -> None:
         if not self.config.model or not self.config.model.strip():

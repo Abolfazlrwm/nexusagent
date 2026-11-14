@@ -29,16 +29,19 @@ to keep the stateless loop free of a hidden system prompt (ADR 0007).
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+import json
+from collections.abc import Iterator, Sequence
 from typing import Any
 
-from nexusagent.http_provider import post_json
+from nexusagent.http_provider import post_json, post_sse
 from nexusagent.provider import (
     Provider,
     ProviderConfig,
     ProviderConfigurationError,
     ProviderResponse,
     ProviderResponseError,
+    ProviderStreamEvent,
+    StreamTextDelta,
     TextResponse,
     ToolCallRequest,
     ToolResult,
@@ -252,6 +255,134 @@ class AnthropicProvider(Provider):
         endpoint = self.config.endpoint or DEFAULT_ENDPOINT
         payload = post_json(endpoint, body, headers, self.config.timeout)
         return _parse_response(payload)
+
+    def stream_response(
+        self,
+        prompt: str,
+        *,
+        tools: Sequence[ToolSpec] = (),
+        tool_results: Sequence[ToolResult] = (),
+    ) -> Iterator[ProviderStreamEvent]:
+        """Stream the response for ``prompt`` over the SSE wire format.
+
+        Requests ``stream: true`` and yields ``StreamTextDelta`` events as
+        ``text_delta`` blocks arrive, then one final ``ProviderResponse``:
+        the first ``tool_use`` block if one was streamed, otherwise the
+        joined text. Configuration errors raise when the method is called;
+        network and protocol errors surface while the returned iterator is
+        consumed.
+        """
+        self._validate_config()
+        return self._stream_events(prompt, tools, tool_results)
+
+    def _stream_events(
+        self,
+        prompt: str,
+        tools: Sequence[ToolSpec],
+        tool_results: Sequence[ToolResult],
+    ) -> Iterator[ProviderStreamEvent]:
+        body: dict[str, object] = {
+            "model": self.config.model,
+            "max_tokens": self.max_tokens,
+            "messages": _messages_for(prompt, tool_results),
+            "stream": True,
+        }
+
+        if tools:
+            body["tools"] = _tools_to_wire(tools)
+
+        headers = {
+            "Content-Type": "application/json",
+            "anthropic-version": _ANTHROPIC_VERSION,
+        }
+        if self.config.api_key:
+            headers["x-api-key"] = self.config.api_key
+
+        endpoint = self.config.endpoint or DEFAULT_ENDPOINT
+        text_parts: list[str] = []
+        tool_name: str | None = None
+        tool_index: int | None = None
+        tool_input_fragments: list[str] = []
+
+        for data in post_sse(endpoint, body, headers, self.config.timeout):
+            try:
+                event = json.loads(data)
+            except json.JSONDecodeError:
+                raise ProviderResponseError("Anthropic stream event was not valid JSON") from None
+
+            if not isinstance(event, dict):
+                raise ProviderResponseError("Anthropic stream event must be a JSON object")
+
+            event_type = event.get("type")
+
+            if event_type == "error":
+                error = event.get("error")
+                message = error.get("message") if isinstance(error, dict) else None
+                if not isinstance(message, str):
+                    message = json.dumps(error)
+                raise ProviderResponseError(f"Anthropic stream error: {message}")
+
+            if event_type == "content_block_start":
+                block = event.get("content_block")
+                index = event.get("index")
+                if (
+                    isinstance(block, dict)
+                    and block.get("type") == "tool_use"
+                    and tool_name is None  # only the first tool_use block is consumed
+                ):
+                    name = block.get("name")
+                    if not isinstance(name, str) or not name.strip():
+                        raise ProviderResponseError(
+                            "Anthropic tool_use block must have a non-empty 'name'"
+                        )
+                    tool_name = name
+                    tool_index = index if isinstance(index, int) else None
+                continue
+
+            if event_type != "content_block_delta":
+                continue  # message_start, ping, message_delta, message_stop, ...
+
+            delta = event.get("delta")
+            if not isinstance(delta, dict):
+                continue
+
+            delta_type = delta.get("type")
+
+            if delta_type == "text_delta":
+                text = delta.get("text")
+                if not isinstance(text, str):
+                    raise ProviderResponseError("Anthropic text_delta must have a string 'text'")
+                text_parts.append(text)
+                yield StreamTextDelta(text)
+            elif (
+                delta_type == "input_json_delta"
+                and tool_index is not None
+                and event.get("index") == tool_index
+            ):
+                partial = delta.get("partial_json")
+                if not isinstance(partial, str):
+                    raise ProviderResponseError(
+                        "Anthropic input_json_delta must have a string 'partial_json'"
+                    )
+                tool_input_fragments.append(partial)
+            # other delta types (thinking_delta, signature_delta, ...) are skipped
+
+        if tool_name is not None:
+            partial_json = "".join(tool_input_fragments)
+            try:
+                arguments: object = json.loads(partial_json) if partial_json.strip() else {}
+            except json.JSONDecodeError:
+                raise ProviderResponseError("Anthropic tool_use input was not valid JSON") from None
+            if not isinstance(arguments, dict):
+                raise ProviderResponseError("Anthropic tool_use block must have an 'input' object")
+            yield ToolCallRequest(tool_name=tool_name, tool_input=_extract_tool_input(arguments))
+            return
+
+        text = "".join(text_parts)
+        if not text.strip():
+            raise ProviderResponseError("Anthropic stream ended without text or a tool call")
+
+        yield TextResponse(text)
 
     def _validate_config(self) -> None:
         if not self.config.model or not self.config.model.strip():

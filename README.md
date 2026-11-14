@@ -28,7 +28,7 @@ print(runtime.execute_tool("calculator", "2 + 3"))  # 5
 - **Readable by design** — the core is small enough to audit in an afternoon; architecture rules are enforced by tests, not comments.
 - **Honest** — the feature list below says what exists *and what doesn't*. No fake benchmarks, no aspirational docs.
 - **Typed** — ships `py.typed`; the source itself passes `mypy --strict`.
-- **Tested** — 940+ contract tests, ≥95% coverage floor enforced in CI.
+- **Tested** — 1090+ contract tests, ≥95% coverage floor enforced in CI.
 
 ## Features
 
@@ -46,7 +46,7 @@ print(runtime.execute_tool("calculator", "2 + 3"))  # 5
 | CLI (`nexusagent`, `python -m nexusagent`) | ✅ |
 | Fully typed (`py.typed`), strict mypy clean | ✅ |
 | Async execution (additive layer, same contracts) | ✅ [ADR 0006](docs/adr/0006-async-execution-model.md) |
-| Streaming responses | ❌ |
+| Streaming responses (SSE, all HTTP adapters, sync + async) | ✅ [ADR 0009](docs/adr/0009-streaming-responses.md) |
 | Memory, planning, multi-agent orchestration | ❌ |
 | Retries / backoff on HTTP failures | ❌ |
 
@@ -56,9 +56,10 @@ print(runtime.execute_tool("calculator", "2 + 3"))  # 5
 flowchart LR
     U["your code / CLI"] --> R["Runtime"]
     R --> A["Agent"]
-    A -- "generate_response()" --> P["Provider<br/>(fake · scripted · http · openai · anthropic · gemini)"]
-    P -- "TextResponse" --> A
+    A -- "generate_response() / stream_response()" --> P["Provider<br/>(fake · scripted · http · openai · anthropic · gemini)"]
+    P -- "TextResponse / StreamTextDelta" --> A
     P -- "ToolCallRequest" --> A
+    A -- "on_delta(text)" --> U
     A --> X["ToolExecutor"]
     X --> T["ToolRegistry<br/>echo · uppercase · calculator"]
     X -- "ToolResult" --> A
@@ -177,6 +178,28 @@ server's **base URL** — the adapter appends
 `generationConfig.maxOutputTokens`. Design details:
 [ADR 0008](docs/adr/0008-gemini-provider.md).
 
+### Streaming responses
+
+Every HTTP adapter can stream text as it is generated — Server-Sent Events,
+parsed with the standard library, still zero runtime dependencies. Pass an
+`on_delta` callback and it fires with every text fragment as it arrives;
+the returned result still carries the complete answer. Without the callback
+nothing changes.
+
+```python
+from nexusagent import create_application_runtime
+
+runtime = create_application_runtime()
+result = runtime.run("What is 19 + 23?", on_delta=lambda text: print(text, end="", flush=True))
+print()  # deltas are already printed; result.output is the full answer
+```
+
+The same works on the async runtime (`await runtime.run(..., on_delta=...)`),
+and `nexusagent --stream "prompt"` streams straight in the terminal. Tool
+calling is fully supported while streaming: fragments that arrive before a
+tool request are forwarded too, and the loop feeds results back as always.
+Design details: [ADR 0009](docs/adr/0009-streaming-responses.md).
+
 ### Async runtime
 
 The async layer mirrors the sync contracts one-to-one — `await runtime.run(...)`,
@@ -206,6 +229,7 @@ design: [ADR 0006](docs/adr/0006-async-execution-model.md).
 
 ```bash
 nexusagent "your prompt"          # or: python -m nexusagent "your prompt"
+nexusagent --stream "your prompt" # print provider text as it is generated
 nexusagent tool list
 nexusagent tool run calculator "2 + 3"
 ```
@@ -227,6 +251,7 @@ All examples run offline, with no API keys:
 - [`examples/basic.py`](examples/basic.py) — smallest possible run
 - [`examples/custom_tool.py`](examples/custom_tool.py) — define and register your own tool
 - [`examples/tool_loop_demo.py`](examples/tool_loop_demo.py) — the autonomous tool loop over local HTTP
+- [`examples/streaming.py`](examples/streaming.py) — streamed text through `on_delta`, offline
 - [`examples/async_tool_loop.py`](examples/async_tool_loop.py) — the async tool loop with an awaited tool
 - [`examples/http_provider_local.py`](examples/http_provider_local.py) — `http` provider against a local backend
 
@@ -236,7 +261,7 @@ All examples run offline, with no API keys:
 - [Concepts](docs/concepts.md) — Agent, Provider, Tool, Runtime, Settings
 - [Guides](docs/) — write a custom [provider](docs/guides/custom-provider.md), [tool](docs/guides/custom-tool.md) or [async runtime](docs/guides/async.md)
 - [HTTP protocol](docs/protocol.md) — wire format for backends
-- [ADRs](docs/adr/) — architecture decision records (0001–0008)
+- [ADRs](docs/adr/) — architecture decision records (0001–0009)
 - [Security policy](SECURITY.md) · [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md)
 
 ## Project status

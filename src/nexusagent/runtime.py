@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from nexusagent.agent import Agent, AgentResult
 from nexusagent.config import Settings
 from nexusagent.factory import create_provider
@@ -20,8 +22,12 @@ class Runtime:
         self.tool_registry = tool_registry
         self.tool_executor = tool_executor
 
-    def run(self, input_text: str) -> AgentResult:
-        return self.agent.run(input_text)
+    def run(self, input_text: str, *, on_delta: Callable[[str], None] | None = None) -> AgentResult:
+        """Run the agent; with ``on_delta``, forward streamed text fragments.
+
+        See :meth:`nexusagent.agent.Agent.run` for the streaming contract.
+        """
+        return self.agent.run(input_text, on_delta=on_delta)
 
     def execute_tool(self, tool_name: str, input_data: str) -> str:
         return self.agent.execute_tool(tool_name, input_data)

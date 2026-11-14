@@ -25,6 +25,11 @@ class Provider(ABC):
 - `generate_response()` is optional to override and may return a
   `TextResponse` or a `ToolCallRequest`. The default implementation wraps
   `generate()`, so **text-only providers need no changes**.
+- `stream_response()` (ADR 0009) is optional to override: it yields zero or
+  more `StreamTextDelta` fragments as text arrives, then the final
+  `ProviderResponse`. The default delegates to `generate_response()` and
+  yields the complete answer as one event — providers that cannot stream
+  need no changes.
 - Built-ins: `FakeProvider` (echoes, offline), `ScriptedProvider` (replays a
   fixed script — great for demos/tests), `HttpProvider` (speaks
   [the wire protocol](protocol.md)).
@@ -70,6 +75,11 @@ iterations than allowed, and never crashes the run on a provider or tool
 error — it returns a failed `AgentResult` (or a `ToolResult(is_error=True)`
 that the provider can recover from).
 
+With `run(input, on_delta=...)` the loop streams: every text fragment the
+provider emits arrives at the callback as it is generated (including text
+before a tool request), while the `AgentResult` still carries only the
+final answer — see [ADR 0009](adr/0009-streaming-responses.md).
+
 ## Runtime
 
 The `Runtime` is the facade most code should hold: `run()`, `execute_tool()`,
@@ -93,6 +103,10 @@ re-invented, everything is awaited:
   run in worker threads via `asyncio.to_thread`, so the loop never stalls.
 - `AsyncTool` + `AsyncToolExecutor`: awaited tools; plain sync tools keep
   working alongside them in the same registry.
+- Streaming works on both loops: `AsyncAgent.run(..., on_delta=...)`
+  consumes the async `stream_response()` contract, and
+  `SyncProviderAdapter` bridges a streaming sync provider into the event
+  loop one event at a time (worker threads, no new dependencies).
 
 Importing `nexusagent` never starts an event loop; concurrency happens only
 inside code you write (`asyncio.run`, web-framework handlers, ...). See the

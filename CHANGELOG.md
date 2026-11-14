@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-14
+
+### Added
+
+- **Streaming responses** (ADR 0009) — text arrives as it is generated, on
+  every HTTP adapter, under both runtimes, still at zero runtime
+  dependencies (SSE parsed with the standard library):
+  - `Provider.stream_response()` / `AsyncProvider.stream_response()`: yields
+    zero or more `StreamTextDelta` fragments as text arrives, then exactly
+    one final `ProviderResponse` — the same object `generate_response()`
+    returns, with the complete accumulated text. The default implementation
+    delegates to `generate_response()` and yields the single complete
+    event, so text-only providers and the offline fakes need no changes.
+  - Shared SSE transport `nexusagent.http_provider.post_sse()` next to
+    `post_json()`: posts the JSON body with `Accept: text/event-stream`,
+    parses Server-Sent Events (multi-line data fields, comments, CRLF,
+    final-event flush) and maps HTTP/network failures — including
+    mid-stream failures — to the same typed provider errors.
+  - Adapter wire mappings: OpenAI `stream: true` chunks (`delta.content`
+    plus first-`tool_calls` argument accumulation), Anthropic typed events
+    (`text_delta` forwarding, first `tool_use` block with
+    `input_json_delta` joins, in-band `error` events, `ping`/`thinking`
+    skipped), Gemini `:streamGenerateContent?alt=sse` (`text` parts and
+    first `functionCall`, usage-only chunks skipped). Each adapter reuses
+    its existing tool-input helpers, so lenient single-parameter acceptance
+    behaves identically on both paths.
+  - `Agent.run(..., on_delta=...)` and `AsyncAgent.run(..., on_delta=...)`:
+    the callback fires with every text fragment as it arrives (including
+    text emitted before a tool request); `AgentResult.output` still carries
+    only the final answer. Without `on_delta` the non-streaming path is
+    used, unchanged — no behavior change for existing callers.
+  - `SyncProviderAdapter.stream_response()` bridges a streaming sync
+    provider into the event loop one `asyncio.to_thread(next(...))` step at
+    a time; `Runtime.run()` / `AsyncRuntime.run()` pass `on_delta` through.
+  - CLI: `nexusagent --stream "prompt"` prints fragments as they arrive and
+    still prints the complete answer when the backend does not stream.
+- `examples/streaming.py` — offline demo of streamed text through
+  `on_delta` (no API keys).
+
+### Tests
+
+- 152 new offline contract tests: the suite grows from 946 to 1098 tests;
+  coverage rises to 99.85%. New suites cover the SSE transport parser (22
+  tests), the three adapters' streaming paths (88), the agent/async/
+  callback integration (36) and the CLI flag (6).
+
 ## [0.8.0] - 2026-11-12
 
 ### Added
@@ -250,7 +296,12 @@ The **import name** remains `nexusagent`.
   variables, and the factory layer (`create_runtime`,
   `create_application_runtime`).
 
-[Unreleased]: https://github.com/Abolfazlrwm/nexusagent/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/Abolfazlrwm/nexusagent/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/Abolfazlrwm/nexusagent/compare/v0.8.0...v0.9.0
+[0.8.0]: https://github.com/Abolfazlrwm/nexusagent/compare/v0.7.0...v0.8.0
+[0.7.0]: https://github.com/Abolfazlrwm/nexusagent/compare/v0.6.0...v0.7.0
+[0.6.0]: https://github.com/Abolfazlrwm/nexusagent/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/Abolfazlrwm/nexusagent/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/Abolfazlrwm/nexusagent/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/Abolfazlrwm/nexusagent/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Abolfazlrwm/nexusagent/compare/v0.1.0...v0.2.0
