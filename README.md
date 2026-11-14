@@ -25,6 +25,7 @@ print(runtime.execute_tool("calculator", "2 + 3"))  # 5
 ## Why NexusAgent
 
 - **Zero runtime dependencies** — the whole core is the Python standard library. `pip install nexusagent-runtime` pulls nothing else.
+- **Stable public API** — 1.0 declares SemVer stability over the full root surface; a CI-pinned test fails on any accidental removal, rename or silent addition. See [ADR 0010](docs/adr/0010-1.0-api-stability-and-versioning-policy.md).
 - **Readable by design** — the core is small enough to audit in an afternoon; architecture rules are enforced by tests, not comments.
 - **Honest** — the feature list below says what exists *and what doesn't*. No fake benchmarks, no aspirational docs.
 - **Typed** — ships `py.typed`; the source itself passes `mypy --strict`.
@@ -45,6 +46,7 @@ print(runtime.execute_tool("calculator", "2 + 3"))  # 5
 | Configuration via `NEXUS_*` environment variables | ✅ |
 | CLI (`nexusagent`, `python -m nexusagent`) | ✅ |
 | Fully typed (`py.typed`), strict mypy clean | ✅ |
+| Stable public API under SemVer (full root surface, pinned by CI) | ✅ [ADR 0010](docs/adr/0010-1.0-api-stability-and-versioning-policy.md) |
 | Async execution (additive layer, same contracts) | ✅ [ADR 0006](docs/adr/0006-async-execution-model.md) |
 | Streaming responses (SSE, all HTTP adapters, sync + async) | ✅ [ADR 0009](docs/adr/0009-streaming-responses.md) |
 | Memory, planning, multi-agent orchestration | ❌ |
@@ -92,6 +94,29 @@ python scripts/check.py   # lint + format + mypy --strict + tests
 ```
 
 ## Usage
+
+### Everything public imports from the root
+
+Since 1.0 the complete public API — the agent layers, factories, the
+`Provider` contract, the tool layer, the typed errors and the offline
+testing providers — imports from the package root and is covered by the
+stability contract (see [ADR 0010](docs/adr/0010-1.0-api-stability-and-versioning-policy.md)):
+
+```python
+from nexusagent import (
+    Agent,
+    Provider,
+    Tool,
+    ToolRegistry,
+    create_application_runtime,
+    create_provider,
+)
+```
+
+Vendor wire adapters and the built-in demo tools are constructed through
+`create_provider()` / `Settings` and the registry; they are deliberately
+not part of the root surface. Submodule imports keep working, but only
+the root is guaranteed stable.
 
 ### Agent with tools
 
@@ -261,14 +286,16 @@ All examples run offline, with no API keys:
 - [Concepts](docs/concepts.md) — Agent, Provider, Tool, Runtime, Settings
 - [Guides](docs/) — write a custom [provider](docs/guides/custom-provider.md), [tool](docs/guides/custom-tool.md) or [async runtime](docs/guides/async.md)
 - [HTTP protocol](docs/protocol.md) — wire format for backends
-- [ADRs](docs/adr/) — architecture decision records (0001–0009)
+- [ADRs](docs/adr/) — architecture decision records (0001–0010)
 - [Security policy](SECURITY.md) · [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md)
 
 ## Project status
 
-Actively developed, pre-1.0. See [PROJECT_STATUS.md](PROJECT_STATUS.md) for
-a candid snapshot of what works and what the next steps are. Breaking public
-API changes require an ADR and are discussed in the open.
+Actively developed, **1.0 with a stable public API under SemVer**. See
+[PROJECT_STATUS.md](PROJECT_STATUS.md) for a candid snapshot of what works
+and what the next steps are. Behavioral changes to a public name require a
+deprecation release and a CHANGELOG entry; removals wait for a new major
+version ([ADR 0010](docs/adr/0010-1.0-api-stability-and-versioning-policy.md)).
 
 ## License
 
