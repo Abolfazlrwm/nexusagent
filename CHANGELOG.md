@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-11-16
+
+### Added
+
+- **In-process conversation memory (ADR 0012)** — opt-in, provider-agnostic
+  memory so the agent carries context across runs, still at zero runtime
+  dependencies:
+  - New public names at the package root (33 → 36, additive per ADR 0010):
+    `ConversationTurn` (one validated, frozen `user`/`assistant` turn),
+    `Memory` (the three-method storage contract: `append`, `history`,
+    `clear` — implement it for Redis/SQLite/... backends) and
+    `InMemoryMemory` (the built-in bounded FIFO: `max_turns`, default 100,
+    oldest evicted first; `clear()` to forget).
+  - `Agent` and `AsyncAgent` grow an additive final `memory` keyword
+    (default `None`; a non-`Memory` object is a `TypeError`). Each
+    **successful** run records `(user, input)` and `(assistant, output)`;
+    failed runs — provider errors, missing tools, iteration exhaustion,
+    `on_delta` failures — record nothing. A run's tool traffic stays
+    inside the run: memory holds completed exchanges only.
+  - `compose_prompt()` composes the remembered transcript (oldest first,
+    one `role: text` line per turn) into the prompt of the next run. With
+    an empty history the prompt is the input byte-for-byte, so configuring
+    memory never changes a first run and the no-memory path is untouched.
+  - **The Provider contract is untouched** — no new keyword, no signature
+    change, no adapter code — so memory works with every provider,
+    including user-written subclasses, on both the sync and the async
+    loops (`SyncProviderAdapter` included).
+  - `create_runtime()` and `create_async_runtime()` grow an additive
+    `memory` parameter; `Runtime.memory` / `AsyncRuntime.memory` expose
+    the configured instance as a read-only property (`None` when absent).
+    `Settings` is deliberately unchanged: memory is an object with
+    identity and lifetime, not a scalar.
+
+- 52 new offline contract tests: turn and storage validation, FIFO
+  bounds and eviction, custom `Memory` backends, the transcript format
+  (including the empty-history identity), sync/async recording rules,
+  streaming runs, adapter compatibility, runtime/factory wiring. Suite:
+  1142 → 1194 tests, coverage 99.80%.
+- Docs: ADR 0012, README (highlight, feature row, usage section),
+  architecture (diagram + module map), concepts (`Memory` section),
+  PROJECT_STATUS, CHANGELOG.
+
 ## [1.1.0] - 2026-11-15
 
 ### Added
@@ -379,7 +421,8 @@ The **import name** remains `nexusagent`.
   variables, and the factory layer (`create_runtime`,
   `create_application_runtime`).
 
-[Unreleased]: https://github.com/Abolfazlrwm/nexusagent/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/Abolfazlrwm/nexusagent/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/Abolfazlrwm/nexusagent/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/Abolfazlrwm/nexusagent/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/Abolfazlrwm/nexusagent/compare/v0.9.0...v1.0.0
 [0.9.0]: https://github.com/Abolfazlrwm/nexusagent/compare/v0.8.0...v0.9.0
