@@ -130,6 +130,11 @@ each adapter maps its own wire's delta events onto the contract.
 - **Explicit errors.** Typed exception hierarchy (`ProviderError` →
   `Configuration`/`Request`/`Response`; `ToolExecutionError`); the CLI turns
   them into clean one-line messages.
-- **Public API is narrow.** Only what `nexusagent/__init__.py` exports is
-  public; submodules may change without notice (the registry/executor
-  classes are the documented extension points for custom tools).
+- **Public API is the package root, and it is stable (ADR 0010).** Since
+  1.0, exactly what `nexusagent/__init__.py` exports in `__all__` (33
+  names) is the versioned public surface, pinned by
+  `tests/test_public_api.py`; SemVer governs it — nothing is renamed,
+  moved or removed within major version 1. Vendor wire adapters, the
+  built-in demo tools and the internal factories stay off the root and
+  may change without notice (the `Tool`/`Provider` ABCs are the
+  documented extension points for custom tools and backends).

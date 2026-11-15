@@ -128,3 +128,19 @@ combination locally — wrong combinations fail fast, before any network call.
 | `ProviderResponseError` | the response was not valid protocol JSON |
 | `ToolExecutionError` | a tool's `execute()` raised |
 | `ValueError` / `TypeError` | invalid settings/inputs, validated early |
+
+## Public API surface
+
+Since 1.0 the stable public API is exactly what the package root exports:
+`nexusagent.__all__` — the Agent/Runtime layers, the factories
+(`create_runtime`, `create_async_runtime`, `create_application_runtime`,
+`create_provider`), `Settings`, the full Provider contract and its typed
+errors, the Tool layer (`Tool`, `AsyncTool`, `ToolRegistry`,
+`ToolExecutor`, `AsyncToolExecutor`), the offline testing providers
+(`FakeProvider`, `ScriptedProvider`) and `SyncProviderAdapter`. Semantic
+versioning governs it: within major version 1 nothing there is renamed,
+moved or removed. Vendor wire adapters, the built-in demo tools and the
+internal factories stay off the root and are reached via
+`create_provider()` / `Settings` / a registry; deep submodule imports keep
+working but are not guaranteed. See
+[ADR 0010](adr/0010-1.0-api-stability-and-versioning-policy.md).

@@ -4,9 +4,13 @@ This file exists so that whoever picks this project back up — even months
 later — can understand exactly what works, what doesn't exist yet, and
 where to resume without re-reading the entire history.
 
-## Current state: WORKING and STABLE
+## Current state: WORKING and STABLE — 1.0
 
-- 1098 tests, all passing.
+- **1.0.0 declares API stability** (ADR 0010): the full public surface is
+  `nexusagent.__all__` at the package root (33 names), governed by SemVer
+  and pinned by `tests/test_public_api.py`; vendor wire adapters, built-in
+  demo tools and internal factories stay internal by design.
+- 1103 tests, all passing.
 - `ruff check .` and `ruff format --check .` — clean.
 - `mypy --strict` — clean.
 - `pytest` enforces a coverage floor of 95% (currently ~99.85%).
@@ -79,10 +83,12 @@ lower layers from depending upward on higher ones.
 
 ## Next natural steps (in order)
 
-1. Release 0.9.0 (streaming responses) to PyPI — Trusted Publishing is
-   wired; tagging `v0.9.0` is enough.
+1. Release 1.0.0 (API stability, ADR 0010) to PyPI — Trusted Publishing is
+   wired; tagging `v1.0.0` is enough.
 2. Consider retries/backoff for HTTP providers, or in-process memory
-   between runs, each with its own ADR — do not add them ad hoc.
+   between runs, each with its own ADR — do not add them ad hoc. Under
+   the 1.0 policy both are additive features (new minor versions); no
+   public name may move without a deprecation release.
 
 ## How to run things
 
