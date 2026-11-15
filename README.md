@@ -26,6 +26,7 @@ print(runtime.execute_tool("calculator", "2 + 3"))  # 5
 
 - **Zero runtime dependencies** — the whole core is the Python standard library. `pip install nexusagent-runtime` pulls nothing else.
 - **Automatic retries** — transient HTTP failures (connection errors, timeouts, 429/5xx) are retried with exponential backoff, full jitter and `Retry-After` support. See [ADR 0011](docs/adr/0011-http-retry-backoff.md).
+- **Conversation memory** — opt-in in-process memory composes remembered turns into each run's prompt, so the agent carries context across runs with any provider. See [ADR 0012](docs/adr/0012-conversation-memory.md).
 - **Stable public API** — 1.0 declares SemVer stability over the full root surface; a CI-pinned test fails on any accidental removal, rename or silent addition. See [ADR 0010](docs/adr/0010-1.0-api-stability-and-versioning-policy.md).
 - **Readable by design** — the core is small enough to audit in an afternoon; architecture rules are enforced by tests, not comments.
 - **Honest** — the feature list below says what exists *and what doesn't*. No fake benchmarks, no aspirational docs.
@@ -51,7 +52,8 @@ print(runtime.execute_tool("calculator", "2 + 3"))  # 5
 | Async execution (additive layer, same contracts) | ✅ [ADR 0006](docs/adr/0006-async-execution-model.md) |
 | Streaming responses (SSE, all HTTP adapters, sync + async) | ✅ [ADR 0009](docs/adr/0009-streaming-responses.md) |
 | Retries / backoff on HTTP failures (429/5xx, jitter, `Retry-After`) | ✅ [ADR 0011](docs/adr/0011-http-retry-backoff.md) |
-| Memory, planning, multi-agent orchestration | ❌ |
+| Conversation memory (opt-in, in-process, provider-agnostic) | ✅ [ADR 0012](docs/adr/0012-conversation-memory.md) |
+| Planning, multi-agent orchestration | ❌ |
 
 ## Architecture
 
@@ -243,6 +245,34 @@ export NEXUS_RETRIES=5   # default 2; 0 disables and fails on first error
 
 Design details: [ADR 0011](docs/adr/0011-http-retry-backoff.md).
 
+### Conversation memory
+
+By default every run is independent. Give the runtime an in-process memory
+and each successful run records its user input and final answer, then the
+next run's prompt carries that transcript — the model remembers names,
+decisions and earlier results across runs. The provider contract is
+touched nowhere, so memory works with every provider, including your own
+subclasses; a bounded FIFO keeps long sessions flat (`max_turns`, default
+100, oldest evicted first).
+
+```python
+from nexusagent import InMemoryMemory, create_runtime
+
+memory = InMemoryMemory()  # bounded FIFO, default max_turns=100
+runtime = create_runtime(memory=memory)
+
+runtime.run("My name is Sara")
+result = runtime.run("What is my name?")
+print(result.output)  # the model now knows
+
+print(len(memory))  # 4 turns: two completed exchanges
+memory.clear()  # start fresh
+```
+
+Failed runs record nothing, and a memory with no history composes the
+prompt byte-for-byte like the no-memory path. Design details:
+[ADR 0012](docs/adr/0012-conversation-memory.md).
+
 ### Async runtime
 
 The async layer mirrors the sync contracts one-to-one — `await runtime.run(...)`,
@@ -296,6 +326,7 @@ All examples run offline, with no API keys:
 - [`examples/custom_tool.py`](examples/custom_tool.py) — define and register your own tool
 - [`examples/tool_loop_demo.py`](examples/tool_loop_demo.py) — the autonomous tool loop over local HTTP
 - [`examples/streaming.py`](examples/streaming.py) — streamed text through `on_delta`, offline
+- [`examples/memory.py`](examples/memory.py) — conversation memory across runs, offline
 - [`examples/async_tool_loop.py`](examples/async_tool_loop.py) — the async tool loop with an awaited tool
 - [`examples/http_provider_local.py`](examples/http_provider_local.py) — `http` provider against a local backend
 

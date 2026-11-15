@@ -4,16 +4,21 @@ This file exists so that whoever picks this project back up — even months
 later — can understand exactly what works, what doesn't exist yet, and
 where to resume without re-reading the entire history.
 
-## Current state: WORKING and STABLE — 1.0
+## Current state: WORKING and STABLE — 1.2
 
-- **1.0.0 declares API stability** (ADR 0010): the full public surface is
-  `nexusagent.__all__` at the package root (33 names), governed by SemVer
-  and pinned by `tests/test_public_api.py`; vendor wire adapters, built-in
-  demo tools and internal factories stay internal by design.
-- 1142 tests, all passing.
+- **1.0.0 declared API stability** (ADR 0010): the full public surface is
+  `nexusagent.__all__` at the package root, governed by SemVer and pinned
+  by `tests/test_public_api.py`; vendor wire adapters, built-in demo tools
+  and internal factories stay internal by design. Since 1.0 the surface
+  only grew additively: 33 names at 1.0.0, 36 at 1.2.0 (conversation
+  memory, ADR 0012).
+- **1.1.0 added automatic HTTP retries** (ADR 0011); **1.2.0 adds
+  in-process conversation memory** (ADR 0012) — both additive, both
+  offline-tested.
+- 1194 tests, all passing.
 - `ruff check .` and `ruff format --check .` — clean.
 - `mypy --strict` — clean.
-- `pytest` enforces a coverage floor of 95% (currently ~99.85%).
+- `pytest` enforces a coverage floor of 95% (currently ~99.80%).
 - `python scripts/check.py` — passes.
 - No known bugs, no known regressions, no unfinished/half-done code.
 
@@ -51,6 +56,14 @@ A real, working, tested agent runtime that can:
   `ProviderConfig.retries` / `NEXUS_RETRIES` (default 2, `0` disables);
   permanent failures fail fast and a mid-stream failure is never
   retried.
+- **Carry context across runs with conversation memory** (ADR 0012):
+  opt-in `Memory` implementations — built-in `InMemoryMemory` (bounded
+  FIFO, `max_turns`, default 100) or your own three-method backend —
+  record every successful run's `(user, assistant)` exchange and compose
+  the remembered transcript into the next run's prompt via
+  `compose_prompt()`. Provider-agnostic (the Provider contract is
+  untouched), sync and async, failed runs record nothing; an empty
+  memory composes the input byte-for-byte.
 - **Run the same runtime under asyncio** (`AsyncAgent`, `AsyncRuntime`,
   `create_async_runtime`): the sync `Agent`/`Runtime` stay first-class, and
   the async layer mirrors them contract-for-contract. Sync providers (fake,
@@ -83,17 +96,23 @@ lower layers from depending upward on higher ones.
   (`docs/protocol.md`) covers everything else. Native adapters for other
   vendors are future work. The `http` wire protocol has no streaming mode
   of its own yet.
-- **No memory, planning, or multi-agent orchestration.** The loop is
-  single-turn from the caller's perspective: one input, one final answer.
+- **No persistence for memory.** Conversation memory (ADR 0012) is
+  process-local; there is no built-in serialization, session store or
+  cross-process sharing (custom `Memory` backends are the extension
+  point).
+- **No planning or multi-agent orchestration.** Within a run the loop is
+  single-agent: one input, one final answer.
 
 ## Next natural steps (in order)
 
-1. Release 1.1.0 (HTTP retries/backoff, ADR 0011) to PyPI — Trusted
-   Publishing is wired; tagging `v1.1.0` is enough.
-2. Consider in-process memory between runs, each with its own ADR — do
-   not add them ad hoc. Under the 1.0 policy this is an additive feature
-   (a new minor version); no public name may move without a deprecation
-   release.
+1. ~~Release 1.1.0 (HTTP retries/backoff, ADR 0011)~~ — released.
+2. ~~In-process memory between runs (ADR 0012)~~ — released in 1.2.0.
+3. Native per-vendor history threading (an additive `history` keyword on
+   the Provider contract, rehydrated by each adapter) — a candidate for a
+   later minor release; must remain additive per ADR 0010.
+4. Planning / multi-agent orchestration — each with its own ADR; do not
+   add them ad hoc. Under the 1.0 policy everything stays additive; no
+   public name may move without a deprecation release.
 
 ## How to run things
 

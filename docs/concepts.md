@@ -87,8 +87,36 @@ The `Runtime` is the facade most code should hold: `run()`, `execute_tool()`,
 
 - `create_application_runtime(settings=None)` — full setup with the three
   built-in tools; the recommended entry point.
-- `create_runtime(settings, tool_registry=None, tool_executor=None)` —
-  lower-level; tools are attached only if you pass a registry/executor.
+- `create_runtime(settings, tool_registry=None, tool_executor=None,
+  memory=None)` — lower-level; tools are attached only if you pass a
+  registry/executor; pass `memory=` to enable conversation memory.
+
+## Memory
+
+By default runs are independent — the provider never sees earlier runs.
+Pass a `Memory` to opt in (ADR 0012):
+
+```python
+from nexusagent import InMemoryMemory, create_runtime
+
+runtime = create_runtime(memory=InMemoryMemory())
+runtime.run("My name is Sara")
+runtime.run("What is my name?")  # prompt carries the prior exchange
+```
+
+Each **successful** run records one `(user, input)` and one
+`(assistant, output)` turn — failed runs record nothing, and a run's tool
+traffic stays inside the run. On the next run the remembered turns are
+composed into the prompt as a transcript (`compose_prompt()`); with an
+empty history the prompt is the input byte-for-byte, so configuring
+memory never changes a first run.
+
+The built-in `InMemoryMemory` is a bounded process-local FIFO
+(`max_turns=100`, oldest evicted first, `clear()` to forget). Implement
+the three-method `Memory` ABC (`append`, `history`, `clear`) for a custom
+backend. `runtime.memory` exposes the configured instance (`None` when
+absent). The provider contract is untouched — memory works with every
+provider, sync and async alike.
 
 ## Async execution
 
@@ -140,10 +168,11 @@ Since 1.0 the stable public API is exactly what the package root exports:
 `create_provider`), `Settings`, the full Provider contract and its typed
 errors, the Tool layer (`Tool`, `AsyncTool`, `ToolRegistry`,
 `ToolExecutor`, `AsyncToolExecutor`), the offline testing providers
-(`FakeProvider`, `ScriptedProvider`) and `SyncProviderAdapter`. Semantic
-versioning governs it: within major version 1 nothing there is renamed,
-moved or removed. Vendor wire adapters, the built-in demo tools and the
-internal factories stay off the root and are reached via
-`create_provider()` / `Settings` / a registry; deep submodule imports keep
-working but are not guaranteed. See
+(`FakeProvider`, `ScriptedProvider`), `SyncProviderAdapter` and the
+conversation-memory classes (`ConversationTurn`, `Memory`,
+`InMemoryMemory`). Semantic versioning governs it: within major version 1
+nothing there is renamed, moved or removed. Vendor wire adapters, the
+built-in demo tools and the internal factories stay off the root and are
+reached via `create_provider()` / `Settings` / a registry; deep submodule
+imports keep working but are not guaranteed. See
 [ADR 0010](adr/0010-1.0-api-stability-and-versioning-policy.md).

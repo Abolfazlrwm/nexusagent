@@ -3,9 +3,11 @@
 ``AsyncAgent`` mirrors the sync ``Agent`` (ADR 0002 semantics) on top of the
 ``AsyncProvider`` contract (ADR 0006): same ``AgentResult``, same iteration
 bound, and the same rule that tool failures become error results instead of
-crashing the run. The sync ``Agent`` stays unchanged and first-class; the
-two loops are deliberately parallel implementations so neither can break
-the other (ADR 0006).
+crashing the run. It also mirrors the sync conversation-memory contract
+(ADR 0012): remembered turns are composed into the prompt of each run and
+successful runs record their turns. The sync ``Agent`` stays unchanged and
+first-class; the two loops are deliberately parallel implementations so
+neither can break the other (ADR 0006).
 """
 
 from __future__ import annotations
@@ -15,6 +17,13 @@ from collections.abc import Callable
 from nexusagent.agent import DEFAULT_MAX_ITERATIONS, AgentResult
 from nexusagent.async_tool_executor import AsyncToolExecutor
 from nexusagent.logging import get_logger
+from nexusagent.memory import (
+    ASSISTANT_ROLE,
+    USER_ROLE,
+    ConversationTurn,
+    Memory,
+    compose_prompt,
+)
 from nexusagent.provider import (
     AsyncProvider,
     ProviderResponse,
@@ -42,6 +51,7 @@ class AsyncAgent:
         tool_registry: ToolRegistry | None = None,
         tool_executor: AsyncToolExecutor | None = None,
         max_iterations: int = DEFAULT_MAX_ITERATIONS,
+        memory: Memory | None = None,
     ) -> None:
         if not isinstance(provider, AsyncProvider):
             raise TypeError("AsyncAgent requires an AsyncProvider instance")
@@ -52,10 +62,14 @@ class AsyncAgent:
         if max_iterations < 1:
             raise ValueError("max_iterations must be at least 1")
 
+        if memory is not None and not isinstance(memory, Memory):
+            raise TypeError("memory must be a Memory instance")
+
         self.provider = provider
         self.tool_registry = tool_registry
         self.tool_executor = tool_executor
         self.max_iterations = max_iterations
+        self.memory = memory
 
     async def run(
         self, input_text: str, *, on_delta: Callable[[str], None] | None = None
@@ -72,6 +86,12 @@ class AsyncAgent:
         a tool request); ``AgentResult.output`` still carries only the
         final answer. Without ``on_delta`` the plain awaited
         ``generate_response()`` path is used, unchanged.
+
+        With memory configured (ADR 0012), semantics mirror the sync
+        ``Agent.run()`` exactly: remembered turns are composed into the
+        prompt of this run and a successful run records
+        ``(user, input_text)`` and ``(assistant, output)``; failed runs
+        record nothing.
         """
         if not isinstance(input_text, str):
             raise TypeError("input_text must be a string")
@@ -82,20 +102,23 @@ class AsyncAgent:
         can_use_tools = self.tool_registry is not None and self.tool_executor is not None
         tools = self._tool_specs() if can_use_tools else ()
         tool_results: list[ToolResult] = []
+        history = self.memory.history() if self.memory is not None else ()
+        prompt = compose_prompt(input_text, history)
 
         for iteration in range(1, self.max_iterations + 1):
             try:
                 if on_delta is None:
-                    response = await self._ask_provider(input_text, tools, tuple(tool_results))
+                    response = await self._ask_provider(prompt, tools, tuple(tool_results))
                 else:
                     response = await self._stream_provider_response(
-                        input_text, tools, tuple(tool_results), on_delta
+                        prompt, tools, tuple(tool_results), on_delta
                     )
             except Exception as exc:  # noqa: BLE001
                 return AgentResult(output=f"provider error: {exc}", success=False)
 
             if isinstance(response, TextResponse):
                 _logger.debug("iteration %d: provider answered with text", iteration)
+                self._remember(input_text, response.text)
                 return AgentResult(output=response.text, success=True)
 
             if not isinstance(response, ToolCallRequest):
@@ -172,6 +195,15 @@ class AsyncAgent:
                 return event
 
         raise ProviderResponseError("provider stream ended without a final response")
+
+    def _remember(self, input_text: str, output: str) -> None:
+        """Record one completed exchange in memory, when configured (ADR 0012)."""
+        if self.memory is None:
+            return
+
+        self.memory.append(ConversationTurn(USER_ROLE, input_text))
+        self.memory.append(ConversationTurn(ASSISTANT_ROLE, output))
+        _logger.debug("memory now holds %d turns", len(self.memory))
 
     def _tool_specs(self) -> tuple[ToolSpec, ...]:
         assert self.tool_registry is not None
