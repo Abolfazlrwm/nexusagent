@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-15
+
+### Added
+
+- **Automatic retries with exponential backoff for HTTP providers**
+  (ADR 0011) — transient request-level failures are retried in the
+  shared transport, so all four HTTP-based providers (`http`, `openai`,
+  `anthropic`, `gemini`) gain the policy at once, on both the request
+  and the streaming paths, still at zero runtime dependencies:
+  - Retryable failures: connection errors (`URLError`), timeouts, and
+    HTTP 429, 500, 502, 503, 504. Every other status (authentication,
+    bad requests, other 4xx) and every protocol-level response error
+    fails fast exactly as before — the raised errors and their messages
+    are unchanged.
+  - Backoff: 0.5s doubling per attempt, capped at 8s, with full jitter
+    (`random.uniform`) so concurrent clients do not retry in lockstep.
+    An integer `Retry-After` hint wins when the server sends one,
+    bounded by the same 8s cap; the HTTP-date form falls back to the
+    exponential curve.
+  - The retry window ends at the response headers: a mid-stream
+    failure or a body-read timeout is never retried, so streamed
+    fragments never repeat (ADR 0009 display safety). Worst case is
+    bounded and documented: `(retries + 1) × timeout + Σ backoff`.
+  - `ProviderConfig` grows `retries: int = 2` and `Settings` grows
+    `retries` (`NEXUS_RETRIES`, default 2, `0` disables; validated
+    locally like every other setting); `create_runtime()` wires it
+    through. Both are additive dataclass fields — existing constructor
+    calls keep working, nothing renamed or removed (ADR 0010).
+  - Each provider validates non-negative retries in its configuration
+    check and passes `config.retries` to the transport on both paths.
+
+### Tests
+
+- 39 new offline contract tests: the suite grows from 1103 to 1142
+  tests; coverage 99.79%. New suites cover the retryable/permanent
+  status matrix, exhaustion, `retries=0`, negative configuration,
+  `Retry-After` (honored, capped, unusable), the backoff cap curve,
+  read-stage and mid-stream non-retry behavior, per-adapter wiring on
+  both paths, and the `Settings`/runtime wiring. A suite-wide fixture
+  makes the backoff sleep instant except where a test asserts delays
+  explicitly.
+
 ## [1.0.0] - 2026-11-14
 
 ### Added
@@ -337,7 +379,8 @@ The **import name** remains `nexusagent`.
   variables, and the factory layer (`create_runtime`,
   `create_application_runtime`).
 
-[Unreleased]: https://github.com/Abolfazlrwm/nexusagent/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/Abolfazlrwm/nexusagent/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/Abolfazlrwm/nexusagent/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/Abolfazlrwm/nexusagent/compare/v0.9.0...v1.0.0
 [0.9.0]: https://github.com/Abolfazlrwm/nexusagent/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/Abolfazlrwm/nexusagent/compare/v0.7.0...v0.8.0
