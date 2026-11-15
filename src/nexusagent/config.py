@@ -25,6 +25,7 @@ class Settings:
     provider: str = "fake"
     endpoint: str | None = None
     timeout: float = 30.0
+    retries: int = 2
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -38,6 +39,14 @@ class Settings:
                 "must be a number of seconds (e.g. 30 or 4.5)"
             ) from None
 
+        raw_retries = os.getenv("NEXUS_RETRIES", "2")
+        try:
+            retries = int(raw_retries)
+        except ValueError:
+            raise ValueError(
+                f"Invalid NEXUS_RETRIES: {raw_retries!r} — must be a whole number (e.g. 0 or 3)"
+            ) from None
+
         return cls(
             env=os.getenv("NEXUS_ENV", "development"),
             log_level=os.getenv("NEXUS_LOG_LEVEL", "INFO"),
@@ -46,6 +55,7 @@ class Settings:
             provider=os.getenv("NEXUS_PROVIDER", "fake"),
             endpoint=os.getenv("NEXUS_ENDPOINT"),
             timeout=timeout,
+            retries=retries,
         )
 
     def __repr__(self) -> str:
@@ -54,7 +64,7 @@ class Settings:
             f"Settings(env={self.env!r}, log_level={self.log_level!r}, "
             f"model={self.model!r}, api_key={api_key_display}, "
             f"provider={self.provider!r}, endpoint={self.endpoint!r}, "
-            f"timeout={self.timeout!r})"
+            f"timeout={self.timeout!r}, retries={self.retries!r})"
         )
 
     def validate(self) -> None:
@@ -71,6 +81,12 @@ class Settings:
 
         if not math.isfinite(self.timeout) or self.timeout <= 0:
             raise ValueError("Timeout must be a positive finite number")
+
+        if not isinstance(self.retries, int) or isinstance(self.retries, bool):
+            raise ValueError("Retries must be an integer")
+
+        if self.retries < 0:
+            raise ValueError("Retries must not be negative")
 
         if self.provider == "http" and (not self.endpoint or not self.endpoint.strip()):
             raise ValueError("HTTP provider requires an endpoint")

@@ -337,7 +337,9 @@ class OpenAIProvider(Provider):
             headers["Authorization"] = f"Bearer {self.config.api_key}"
 
         endpoint = self.config.endpoint or DEFAULT_ENDPOINT
-        payload = post_json(endpoint, body, headers, self.config.timeout)
+        payload = post_json(
+            endpoint, body, headers, self.config.timeout, retries=self.config.retries
+        )
         return _parse_response(payload)
 
     def stream_response(
@@ -381,7 +383,9 @@ class OpenAIProvider(Provider):
         text_parts: list[str] = []
         tool_call = _ToolCallAccumulator()
 
-        for data in post_sse(endpoint, body, headers, self.config.timeout):
+        for data in post_sse(
+            endpoint, body, headers, self.config.timeout, retries=self.config.retries
+        ):
             if data.strip() == "[DONE]":
                 break
 
@@ -420,3 +424,6 @@ class OpenAIProvider(Provider):
 
         if self.config.timeout <= 0:
             raise ProviderConfigurationError("OpenAIProvider requires a positive timeout")
+
+        if self.config.retries < 0:
+            raise ProviderConfigurationError("OpenAIProvider requires non-negative retries")

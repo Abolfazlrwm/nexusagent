@@ -293,7 +293,9 @@ class GeminiProvider(Provider):
         # _validate_config() guarantees a non-empty model; narrow for the URL.
         assert self.config.model is not None
         endpoint = _request_url(self.config.endpoint, self.config.model)
-        payload = post_json(endpoint, body, headers, self.config.timeout)
+        payload = post_json(
+            endpoint, body, headers, self.config.timeout, retries=self.config.retries
+        )
         return _parse_response(payload)
 
     def stream_response(
@@ -341,7 +343,9 @@ class GeminiProvider(Provider):
         tool_name: str | None = None
         tool_arguments: dict[str, Any] | None = None
 
-        for data in post_sse(endpoint, body, headers, self.config.timeout):
+        for data in post_sse(
+            endpoint, body, headers, self.config.timeout, retries=self.config.retries
+        ):
             try:
                 chunk = json.loads(data)
             except json.JSONDecodeError:
@@ -423,6 +427,9 @@ class GeminiProvider(Provider):
 
         if self.config.timeout <= 0:
             raise ProviderConfigurationError("GeminiProvider requires a positive timeout")
+
+        if self.config.retries < 0:
+            raise ProviderConfigurationError("GeminiProvider requires non-negative retries")
 
         if self.max_tokens is not None and not _is_positive_int(self.max_tokens):
             raise ProviderConfigurationError(

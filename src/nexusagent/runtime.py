@@ -54,6 +54,7 @@ def create_runtime(
         api_key=settings.api_key,
         endpoint=settings.endpoint,
         timeout=settings.timeout,
+        retries=settings.retries,
     )
     provider = create_provider(settings.provider, config)
     agent = Agent(provider, tool_registry=tool_registry, tool_executor=tool_executor)
