@@ -23,8 +23,13 @@ EXPECTED_PUBLIC_API = (
     "AsyncRuntime",
     "AsyncTool",
     "AsyncToolExecutor",
+    # Conversation memory (ADR 0012)
+    "ConversationTurn",
     # Offline / testing providers
     "FakeProvider",
+    # Conversation memory (ADR 0012), continued
+    "InMemoryMemory",
+    "Memory",
     # Provider contract and its typed errors
     "Provider",
     "ProviderConfig",

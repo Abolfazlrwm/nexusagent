@@ -9,6 +9,12 @@ and a ToolExecutor it also runs the autonomous tool loop:
 
 The loop is bounded by ``max_iterations`` so a misbehaving backend can never
 keep the agent running forever. Explicit ``execute_tool()`` remains available.
+
+With an optional :class:`nexusagent.memory.Memory` (ADR 0012) the agent
+also remembers completed conversation turns across runs: remembered turns
+are composed into the prompt it sends (see
+:func:`nexusagent.memory.compose_prompt`), and each successful run
+records its user input and final answer. Failed runs record nothing.
 """
 
 from __future__ import annotations
@@ -17,6 +23,13 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from nexusagent.logging import get_logger
+from nexusagent.memory import (
+    ASSISTANT_ROLE,
+    USER_ROLE,
+    ConversationTurn,
+    Memory,
+    compose_prompt,
+)
 from nexusagent.provider import (
     Provider,
     ProviderResponse,
@@ -50,6 +63,7 @@ class Agent:
         tool_registry: ToolRegistry | None = None,
         tool_executor: ToolExecutor | None = None,
         max_iterations: int = DEFAULT_MAX_ITERATIONS,
+        memory: Memory | None = None,
     ) -> None:
         if isinstance(max_iterations, bool) or not isinstance(max_iterations, int):
             raise TypeError("max_iterations must be an integer")
@@ -57,10 +71,14 @@ class Agent:
         if max_iterations < 1:
             raise ValueError("max_iterations must be at least 1")
 
+        if memory is not None and not isinstance(memory, Memory):
+            raise TypeError("memory must be a Memory instance")
+
         self.provider = provider
         self.tool_registry = tool_registry
         self.tool_executor = tool_executor
         self.max_iterations = max_iterations
+        self.memory = memory
 
     def run(self, input_text: str, *, on_delta: Callable[[str], None] | None = None) -> AgentResult:
         """Run the agent on the given input and return an AgentResult.
@@ -79,6 +97,13 @@ class Agent:
         exception raised by ``on_delta`` aborts the run and is reported like
         a provider error. Without ``on_delta`` the non-streaming
         ``generate_response()`` path is used, unchanged.
+
+        With memory configured (ADR 0012) the remembered turns are composed
+        into the prompt before the first provider call of this run, and a
+        successful run records ``(user, input_text)`` and
+        ``(assistant, output)``. Failed runs — provider errors, missing
+        tools, iteration exhaustion — record nothing, so memory only ever
+        holds completed exchanges.
         """
         if not isinstance(input_text, str):
             raise TypeError("input_text must be a string")
@@ -89,20 +114,23 @@ class Agent:
         can_use_tools = self.tool_registry is not None and self.tool_executor is not None
         tools = self._tool_specs() if can_use_tools else ()
         tool_results: list[ToolResult] = []
+        history = self.memory.history() if self.memory is not None else ()
+        prompt = compose_prompt(input_text, history)
 
         for iteration in range(1, self.max_iterations + 1):
             try:
                 if on_delta is None:
-                    response = self._ask_provider(input_text, tools, tuple(tool_results))
+                    response = self._ask_provider(prompt, tools, tuple(tool_results))
                 else:
                     response = self._stream_provider_response(
-                        input_text, tools, tuple(tool_results), on_delta
+                        prompt, tools, tuple(tool_results), on_delta
                     )
             except Exception as exc:  # noqa: BLE001
                 return AgentResult(output=f"provider error: {exc}", success=False)
 
             if isinstance(response, TextResponse):
                 _logger.debug("iteration %d: provider answered with text", iteration)
+                self._remember(input_text, response.text)
                 return AgentResult(output=response.text, success=True)
 
             if not isinstance(response, ToolCallRequest):
@@ -192,6 +220,15 @@ class Agent:
                 return event
 
         raise ProviderResponseError("provider stream ended without a final response")
+
+    def _remember(self, input_text: str, output: str) -> None:
+        """Record one completed exchange in memory, when configured (ADR 0012)."""
+        if self.memory is None:
+            return
+
+        self.memory.append(ConversationTurn(USER_ROLE, input_text))
+        self.memory.append(ConversationTurn(ASSISTANT_ROLE, output))
+        _logger.debug("memory now holds %d turns", len(self.memory))
 
     def _tool_specs(self) -> tuple[ToolSpec, ...]:
         assert self.tool_registry is not None
