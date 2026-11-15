@@ -33,6 +33,7 @@ flowchart TB
         ANP["anthropic_provider.py"]
         GNP["gemini_provider.py"]
         TL["tool.py (Tool / AsyncTool ABCs)"]
+        MEM["memory.py (ConversationTurn / Memory / InMemoryMemory)"]
         CT["*_tool.py (built-ins)"]
         CF["config.py (Settings)"]
         LG["logging.py"]
@@ -73,12 +74,13 @@ flowchart TB
 | `tool.py` | `Tool` ABC (`execute(input) -> str`) and `AsyncTool` ABC (`aexecute`, ADR 0006) |
 | `tool_registry.py` | Name → tool mapping; duplicate registration is an error |
 | `tool_executor.py` | Runs a tool, wraps failures in `ToolExecutionError` (original class preserved in the message) |
-| `agent.py` | Validates input, runs the provider, executes the **bounded tool loop** |
+| `agent.py` | Validates input, runs the provider, executes the **bounded tool loop**; composes remembered turns into each run's prompt and records completed exchanges when memory is configured (ADR 0012) |
 | `async_provider.py` | `SyncProviderAdapter`: runs any sync provider's blocking calls in worker threads under the event loop (ADR 0006) |
 | `async_tool_executor.py` | `AsyncToolExecutor`: awaits `AsyncTool` natively, runs sync tools in a worker thread |
-| `async_agent.py` | `AsyncAgent`: awaited mirror of the bounded tool loop (ADR 0006) |
+| `async_agent.py` | `AsyncAgent`: awaited mirror of the bounded tool loop (ADR 0006); same memory contract as the sync agent (ADR 0012) |
 | `async_runtime.py` | `AsyncRuntime` facade + `create_async_runtime()` (ADR 0006) |
-| `runtime.py` | Facade over `Agent` (`run`, `execute_tool`, `list_tools`) + `create_runtime` |
+| `runtime.py` | Facade over `Agent` (`run`, `execute_tool`, `list_tools`, `memory`) + `create_runtime` |
+| `memory.py` | In-process conversation memory (ADR 0012): `ConversationTurn`, the `Memory` storage ABC, the bounded `InMemoryMemory` FIFO and `compose_prompt()` |
 | `config.py` | `Settings` from `NEXUS_*` env vars; local validation, no network |
 | `factory.py` | `create_provider(name, config)` |
 | `tool_factory.py` / `runtime_factory.py` / `application.py` | Composition: built-in tools → `Runtime` → `create_application_runtime()` |
