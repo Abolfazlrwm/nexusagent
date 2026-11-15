@@ -10,7 +10,7 @@ where to resume without re-reading the entire history.
   `nexusagent.__all__` at the package root (33 names), governed by SemVer
   and pinned by `tests/test_public_api.py`; vendor wire adapters, built-in
   demo tools and internal factories stay internal by design.
-- 1103 tests, all passing.
+- 1142 tests, all passing.
 - `ruff check .` and `ruff format --check .` — clean.
 - `mypy --strict` — clean.
 - `pytest` enforces a coverage floor of 95% (currently ~99.85%).
@@ -45,6 +45,12 @@ A real, working, tested agent runtime that can:
   until the Provider answers in plain text (bounded by `max_iterations`,
   default 10). See `docs/adr/0002-tool-call-wire-format-and-agent-loop.md`
   and `docs/protocol.md`.
+- **Retry transient HTTP failures automatically** (ADR 0011): connection
+  errors, timeouts and 429/5xx statuses are retried with exponential
+  backoff, full jitter and `Retry-After` support, bounded by
+  `ProviderConfig.retries` / `NEXUS_RETRIES` (default 2, `0` disables);
+  permanent failures fail fast and a mid-stream failure is never
+  retried.
 - **Run the same runtime under asyncio** (`AsyncAgent`, `AsyncRuntime`,
   `create_async_runtime`): the sync `Agent`/`Runtime` stay first-class, and
   the async layer mirrors them contract-for-contract. Sync providers (fake,
@@ -79,16 +85,15 @@ lower layers from depending upward on higher ones.
   of its own yet.
 - **No memory, planning, or multi-agent orchestration.** The loop is
   single-turn from the caller's perspective: one input, one final answer.
-- **No automatic retries/backoff** on HTTP failures.
 
 ## Next natural steps (in order)
 
-1. Release 1.0.0 (API stability, ADR 0010) to PyPI — Trusted Publishing is
-   wired; tagging `v1.0.0` is enough.
-2. Consider retries/backoff for HTTP providers, or in-process memory
-   between runs, each with its own ADR — do not add them ad hoc. Under
-   the 1.0 policy both are additive features (new minor versions); no
-   public name may move without a deprecation release.
+1. Release 1.1.0 (HTTP retries/backoff, ADR 0011) to PyPI — Trusted
+   Publishing is wired; tagging `v1.1.0` is enough.
+2. Consider in-process memory between runs, each with its own ADR — do
+   not add them ad hoc. Under the 1.0 policy this is an additive feature
+   (a new minor version); no public name may move without a deprecation
+   release.
 
 ## How to run things
 

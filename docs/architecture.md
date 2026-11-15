@@ -66,7 +66,7 @@ flowchart TB
 | --- | --- |
 | `provider.py` | `Provider` ABC (`generate`, `generate_response`, `stream_response`), response types (`TextResponse`, `ToolCallRequest`, `StreamTextDelta`), `ToolSpec`/`ToolResult`, error hierarchy |
 | `providers.py` | `FakeProvider` (deterministic, offline) and `ScriptedProvider` (replays a fixed response script) |
-| `http_provider.py` | Vendor-neutral HTTP backend speaking the wire format in [`protocol.md`](protocol.md); also hosts the shared `post_json()` and `post_sse()` transports (ADR 0009) |
+| `http_provider.py` | Vendor-neutral HTTP backend speaking the wire format in [`protocol.md`](protocol.md); also hosts the shared `post_json()` and `post_sse()` transports (ADR 0009) with the shared retry/backoff policy for transient failures (ADR 0011) |
 | `openai_provider.py` | OpenAI-compatible Chat Completions adapter (OpenAI, Ollama, LM Studio, vLLM, ...) — rehydrates the stateless loop into `messages` (ADR 0005); streams `chat.completion.chunk` SSE deltas (ADR 0009) |
 | `anthropic_provider.py` | Anthropic-compatible Messages adapter (Anthropic, gateways, ...) — rehydrates the stateless loop into `tool_use`/`tool_result` blocks (ADR 0007); streams typed SSE events (ADR 0009) |
 | `gemini_provider.py` | Gemini adapter (`generateContent` wire format; Gemini and gateways) — rehydrates the stateless loop into `functionCall`/`functionResponse` parts (ADR 0008); streams `:streamGenerateContent?alt=sse` (ADR 0009) |

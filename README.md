@@ -25,11 +25,12 @@ print(runtime.execute_tool("calculator", "2 + 3"))  # 5
 ## Why NexusAgent
 
 - **Zero runtime dependencies** — the whole core is the Python standard library. `pip install nexusagent-runtime` pulls nothing else.
+- **Automatic retries** — transient HTTP failures (connection errors, timeouts, 429/5xx) are retried with exponential backoff, full jitter and `Retry-After` support. See [ADR 0011](docs/adr/0011-http-retry-backoff.md).
 - **Stable public API** — 1.0 declares SemVer stability over the full root surface; a CI-pinned test fails on any accidental removal, rename or silent addition. See [ADR 0010](docs/adr/0010-1.0-api-stability-and-versioning-policy.md).
 - **Readable by design** — the core is small enough to audit in an afternoon; architecture rules are enforced by tests, not comments.
 - **Honest** — the feature list below says what exists *and what doesn't*. No fake benchmarks, no aspirational docs.
 - **Typed** — ships `py.typed`; the source itself passes `mypy --strict`.
-- **Tested** — 1090+ contract tests, ≥95% coverage floor enforced in CI.
+- **Tested** — 1140+ contract tests, ≥95% coverage floor enforced in CI.
 
 ## Features
 
@@ -49,8 +50,8 @@ print(runtime.execute_tool("calculator", "2 + 3"))  # 5
 | Stable public API under SemVer (full root surface, pinned by CI) | ✅ [ADR 0010](docs/adr/0010-1.0-api-stability-and-versioning-policy.md) |
 | Async execution (additive layer, same contracts) | ✅ [ADR 0006](docs/adr/0006-async-execution-model.md) |
 | Streaming responses (SSE, all HTTP adapters, sync + async) | ✅ [ADR 0009](docs/adr/0009-streaming-responses.md) |
+| Retries / backoff on HTTP failures (429/5xx, jitter, `Retry-After`) | ✅ [ADR 0011](docs/adr/0011-http-retry-backoff.md) |
 | Memory, planning, multi-agent orchestration | ❌ |
-| Retries / backoff on HTTP failures | ❌ |
 
 ## Architecture
 
@@ -225,6 +226,23 @@ calling is fully supported while streaming: fragments that arrive before a
 tool request are forwarded too, and the loop feeds results back as always.
 Design details: [ADR 0009](docs/adr/0009-streaming-responses.md).
 
+### Automatic retries
+
+Transient HTTP failures — connection errors, timeouts, and `429`/`5xx`
+statuses — are retried automatically on every HTTP provider, on both the
+request and the streaming paths. Backoff starts at 0.5s, doubles per
+attempt and caps at 8s, with full jitter so concurrent clients do not
+retry in lockstep; an integer `Retry-After` hint from the server wins
+when present (bounded by the same cap). Permanent failures —
+authentication, bad requests, other `4xx` — fail fast as always, and a
+mid-stream failure is never retried, so streamed fragments never repeat.
+
+```bash
+export NEXUS_RETRIES=5   # default 2; 0 disables and fails on first error
+```
+
+Design details: [ADR 0011](docs/adr/0011-http-retry-backoff.md).
+
 ### Async runtime
 
 The async layer mirrors the sync contracts one-to-one — `await runtime.run(...)`,
@@ -268,6 +286,7 @@ nexusagent tool run calculator "2 + 3"
 | `NEXUS_MODEL` | model identifier passed to the provider (required for `openai`/`anthropic`/`gemini`) | — |
 | `NEXUS_API_KEY` | sent as `Bearer` (OpenAI), `x-api-key` (Anthropic) or `x-goog-api-key` (Gemini); never logged, masked in reprs | — |
 | `NEXUS_TIMEOUT` | HTTP timeout in seconds | `30` |
+| `NEXUS_RETRIES` | retries for transient HTTP failures (connection errors, timeouts, 429/5xx); `0` disables | `2` |
 
 ## Examples
 
@@ -286,7 +305,7 @@ All examples run offline, with no API keys:
 - [Concepts](docs/concepts.md) — Agent, Provider, Tool, Runtime, Settings
 - [Guides](docs/) — write a custom [provider](docs/guides/custom-provider.md), [tool](docs/guides/custom-tool.md) or [async runtime](docs/guides/async.md)
 - [HTTP protocol](docs/protocol.md) — wire format for backends
-- [ADRs](docs/adr/) — architecture decision records (0001–0010)
+- [ADRs](docs/adr/) — architecture decision records (0001–0011)
 - [Security policy](SECURITY.md) · [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md)
 
 ## Project status
