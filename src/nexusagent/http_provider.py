@@ -27,6 +27,9 @@ from __future__ import annotations
 
 import http.client
 import json
+import math
+import random
+import time
 import urllib.error
 import urllib.request
 from collections.abc import Iterator, Sequence
@@ -49,19 +52,100 @@ _BODY_SNIPPET_MAX_CHARS = 200
 _SSE_DATA_FIELD = "data:"
 _SSE_ACCEPT_VALUE = "text/event-stream"
 
+# Retry policy (ADR 0011): transient request-level failures — connection
+# errors, timeouts and these HTTP statuses — are retried with exponential
+# backoff plus full jitter. Other statuses are permanent and fail fast.
+_RETRYABLE_STATUSES = {429, 500, 502, 503, 504}
+_RETRY_BASE_DELAY_SECONDS = 0.5
+_RETRY_MAX_DELAY_SECONDS = 8.0
+
+
+def _retry_delay(attempt: int, headers: Any = None) -> float:
+    """Return how long to wait before retry attempt ``attempt`` (0-based).
+
+    An integer ``Retry-After`` hint wins when present (bounded by the max
+    delay so the worst case stays predictable); otherwise the delay is
+    exponential backoff (0.5s, 1s, 2s, 4s, ... capped at 8s) with full
+    jitter, so concurrent clients do not retry in lockstep.
+    """
+    if headers is not None:
+        raw = headers.get("Retry-After")
+        if raw is not None:
+            try:
+                hint = float(raw)
+            except ValueError:
+                hint = -1.0  # HTTP-date form: out of scope, use backoff
+            if math.isfinite(hint) and hint > 0:
+                return min(hint, _RETRY_MAX_DELAY_SECONDS)
+
+    cap = min(_RETRY_BASE_DELAY_SECONDS * (2**attempt), _RETRY_MAX_DELAY_SECONDS)
+    return random.uniform(0.0, cap)
+
+
+def _validate_retries(retries: int) -> None:
+    if retries < 0:
+        raise ProviderConfigurationError("Retries must not be negative")
+
+
+def _open_response(
+    request: urllib.request.Request,
+    timeout: float,
+    retries: int,
+) -> Any:
+    """Open ``request``, retrying transient failures up to ``retries`` times.
+
+    The retry window covers the request itself — up to and including the
+    response headers. Once the server starts answering (response body or SSE
+    stream), nothing is retried: a retry could duplicate output the caller
+    has already seen. This is the single place where retry policy, header
+    handling and error mapping live (ADR 0011); the raised errors and their
+    messages are identical to the pre-retry transport.
+    """
+    _validate_retries(retries)
+    attempt = 0
+    while True:
+        try:
+            return urllib.request.urlopen(request, timeout=timeout)
+        except urllib.error.HTTPError as exc:
+            if exc.code in _RETRYABLE_STATUSES and attempt < retries:
+                time.sleep(_retry_delay(attempt, exc.headers))
+                attempt += 1
+                continue
+            # Include a short snippet of the response body when available:
+            # real backends put useful context there (rate limits, auth).
+            detail = _response_body_snippet(exc)
+            raise ProviderRequestError(
+                f"HTTP request failed with status {exc.code}{detail}"
+            ) from None
+        except urllib.error.URLError as exc:
+            if attempt < retries:
+                time.sleep(_retry_delay(attempt))
+                attempt += 1
+                continue
+            raise ProviderRequestError(f"HTTP request failed: {exc.reason}") from None
+        except TimeoutError:
+            if attempt < retries:
+                time.sleep(_retry_delay(attempt))
+                attempt += 1
+                continue
+            raise ProviderRequestError("HTTP request timed out") from None
+
 
 def post_json(
     endpoint: str,
     body: dict[str, object],
     headers: dict[str, str],
     timeout: float,
+    retries: int = 0,
 ) -> object:
     """POST ``body`` as JSON to ``endpoint`` and return the decoded response.
 
     This is the shared HTTP transport for the HTTP-based providers
     (``HttpProvider`` and ``OpenAIProvider``): it encodes the body, sends the
-    request with the given headers, maps HTTP/network failures to the typed
-    provider errors (never leaking credentials), and decodes the JSON
+    request with the given headers, retries transient request-level failures
+    ``retries`` times with exponential backoff (connection errors, timeouts,
+    HTTP 429/5xx — never other statuses), maps HTTP/network failures to the
+    typed provider errors (never leaking credentials), and decodes the JSON
     response. Callers own their configuration checks and wire formats.
     """
     request = urllib.request.Request(
@@ -71,17 +155,15 @@ def post_json(
         method="POST",
     )
 
+    response = _open_response(request, timeout, retries)
+
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with response:
             raw = response.read()
-    except urllib.error.HTTPError as exc:
-        # Include a short snippet of the response body when available: real
-        # backends put useful context there (rate limits, auth failures, ...).
-        detail = _response_body_snippet(exc)
-        raise ProviderRequestError(f"HTTP request failed with status {exc.code}{detail}") from None
-    except urllib.error.URLError as exc:
-        raise ProviderRequestError(f"HTTP request failed: {exc.reason}") from None
     except TimeoutError:
+        # A timeout while reading the body is not retried: the request was
+        # already delivered, and a retry could produce duplicate side
+        # effects on backends that are not inference-safe.
         raise ProviderRequestError("HTTP request timed out") from None
 
     try:
@@ -111,6 +193,7 @@ def post_sse(
     body: dict[str, object],
     headers: dict[str, str],
     timeout: float,
+    retries: int = 0,
 ) -> Iterator[str]:
     """POST ``body`` as JSON to ``endpoint`` and stream back SSE data payloads.
 
@@ -121,10 +204,14 @@ def post_sse(
     string of each event in arrival order; multi-line ``data:`` fields are
     joined with newlines, while event names, ids, retries and comment lines
     are ignored — the JSON payloads of the supported wire formats carry
-    their own event types. Network and HTTP failures map to the same typed
-    provider errors as ``post_json()``; a mid-stream failure surfaces as
-    ``ProviderRequestError`` during iteration. Callers own their
-    configuration checks and wire formats.
+    their own event types.
+
+    Transient request-level failures are retried ``retries`` times with
+    exponential backoff (ADR 0011) — but only until the response headers
+    arrive. A mid-stream failure surfaces as ``ProviderRequestError``
+    during iteration and is never retried: fragments the caller has
+    already seen must not repeat. Callers own their configuration checks
+    and wire formats.
     """
     request = urllib.request.Request(
         endpoint,
@@ -133,15 +220,7 @@ def post_sse(
         method="POST",
     )
 
-    try:
-        response = urllib.request.urlopen(request, timeout=timeout)
-    except urllib.error.HTTPError as exc:
-        detail = _response_body_snippet(exc)
-        raise ProviderRequestError(f"HTTP request failed with status {exc.code}{detail}") from None
-    except urllib.error.URLError as exc:
-        raise ProviderRequestError(f"HTTP request failed: {exc.reason}") from None
-    except TimeoutError:
-        raise ProviderRequestError("HTTP request timed out") from None
+    response = _open_response(request, timeout, retries)
 
     return _iter_sse_data(response)
 
@@ -230,11 +309,20 @@ class HttpProvider(Provider):
         if self.config.timeout <= 0:
             raise ProviderConfigurationError("HttpProvider requires a positive timeout")
 
+        if self.config.retries < 0:
+            raise ProviderConfigurationError("HttpProvider requires non-negative retries")
+
         headers = {"Content-Type": "application/json"}
         if self.config.api_key:
             headers["Authorization"] = f"Bearer {self.config.api_key}"
 
-        return post_json(self.config.endpoint, body, headers, self.config.timeout)
+        return post_json(
+            self.config.endpoint,
+            body,
+            headers,
+            self.config.timeout,
+            retries=self.config.retries,
+        )
 
     @staticmethod
     def _parse_payload(payload: object) -> ProviderResponse:

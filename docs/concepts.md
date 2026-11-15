@@ -117,14 +117,17 @@ inside code you write (`asyncio.run`, web-framework handlers, ...). See the
 `Settings` is a frozen dataclass built from `NEXUS_*` environment variables
 (`Settings.from_env()`) or constructed directly. `validate()` checks the
 combination locally — wrong combinations fail fast, before any network call.
-`api_key` never appears in logs or reprs.
+`api_key` never appears in logs or reprs. `retries` (default 2,
+`NEXUS_RETRIES`) bounds how often transient HTTP failures — connection
+errors, timeouts, 429/5xx — are retried with exponential backoff before
+they surface as `ProviderRequestError` (ADR 0011).
 
 ## Error taxonomy
 
 | Exception | Raised when |
 | --- | --- |
-| `ProviderConfigurationError` | endpoint missing, bad timeout, unknown provider name |
-| `ProviderRequestError` | the HTTP call itself failed (status, connection, timeout) |
+| `ProviderConfigurationError` | endpoint missing, bad timeout, unknown provider name, negative retries |
+| `ProviderRequestError` | the HTTP call itself failed (status, connection, timeout) after retries were exhausted (ADR 0011) |
 | `ProviderResponseError` | the response was not valid protocol JSON |
 | `ToolExecutionError` | a tool's `execute()` raised |
 | `ValueError` / `TypeError` | invalid settings/inputs, validated early |

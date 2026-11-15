@@ -253,7 +253,9 @@ class AnthropicProvider(Provider):
             headers["x-api-key"] = self.config.api_key
 
         endpoint = self.config.endpoint or DEFAULT_ENDPOINT
-        payload = post_json(endpoint, body, headers, self.config.timeout)
+        payload = post_json(
+            endpoint, body, headers, self.config.timeout, retries=self.config.retries
+        )
         return _parse_response(payload)
 
     def stream_response(
@@ -304,7 +306,9 @@ class AnthropicProvider(Provider):
         tool_index: int | None = None
         tool_input_fragments: list[str] = []
 
-        for data in post_sse(endpoint, body, headers, self.config.timeout):
+        for data in post_sse(
+            endpoint, body, headers, self.config.timeout, retries=self.config.retries
+        ):
             try:
                 event = json.loads(data)
             except json.JSONDecodeError:
@@ -390,6 +394,9 @@ class AnthropicProvider(Provider):
 
         if self.config.timeout <= 0:
             raise ProviderConfigurationError("AnthropicProvider requires a positive timeout")
+
+        if self.config.retries < 0:
+            raise ProviderConfigurationError("AnthropicProvider requires non-negative retries")
 
         valid_max_tokens = (
             isinstance(self.max_tokens, int)

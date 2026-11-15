@@ -11,12 +11,14 @@ class ProviderConfig:
     api_key: str | None = None
     endpoint: str | None = None
     timeout: float = 30.0
+    retries: int = 2
 
     def __repr__(self) -> str:
         api_key_display = "set" if self.api_key else "None"
         return (
             f"ProviderConfig(model={self.model!r}, api_key={api_key_display}, "
-            f"endpoint={self.endpoint!r}, timeout={self.timeout!r})"
+            f"endpoint={self.endpoint!r}, timeout={self.timeout!r}, "
+            f"retries={self.retries!r})"
         )
 
 
