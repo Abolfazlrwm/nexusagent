@@ -40,6 +40,8 @@ EXPECTED_PUBLIC_API = (
     "ProviderResponseError",
     "ProviderStreamEvent",
     "Runtime",
+    # Persistent conversation memory (ADR 0013)
+    "SQLiteMemory",
     "ScriptedProvider",
     # Configuration
     "Settings",
