@@ -7,6 +7,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-11-18
+
+### Added
+
+- **Persistent conversation memory — `SQLiteMemory` (ADR 0013)** — the
+  same opt-in, provider-agnostic memory contract as 1.2.0, now backed by
+  a local SQLite database file so history survives process restarts,
+  still at zero runtime dependencies:
+  - One new public name at the package root (36 → 37, additive per ADR
+    0010): `SQLiteMemory(path, max_turns=100)` — a drop-in `Memory`
+    implementation storing turns in a `turns` table via the standard
+    library's `sqlite3`. Works unchanged with `Agent`, `AsyncAgent`,
+    `create_runtime` and `create_async_runtime` via the existing
+    `memory=` keyword.
+  - **Bounded-FIFO semantics identical to `InMemoryMemory`**: `max_turns`
+    is validated the same way (`TypeError` for non-integers including
+    `bool`, `ValueError` below 1) and the oldest rows are deleted beyond
+    the cap — the eviction itself is persisted, so a reopened memory
+    resumes inside the cap. A contract test pins that both built-ins
+    return identical histories for identical operation sequences.
+  - **Durability and lifetime**: the database file and missing parent
+    directories are created on first use; every mutation commits
+    immediately; `close()` releases the connection (idempotent) and the
+    instance doubles as a context manager that closes on exit — further
+    use of a closed instance raises `sqlite3.ProgrammingError`. A read
+    -only `path` property exposes the resolved database file.
+  - **Sharing by reopening**: runtimes that open the same file one after
+    another see the same turns; the instance is deliberately not
+    thread-safe, matching the runtime's single-threaded access (ADR
+    0012).
+  - `Settings` is deliberately unchanged: a file path is a construction
+    argument with lifetime, not an environment scalar.
+- New offline example `examples/sqlite_memory.py` — persistent memory
+  across two "processes" (write, close, reopen), no API keys.
+
+### Docs
+
+- ADR 0013 (`docs/adr/0013-sqlite-memory.md`), README persistent-memory
+  section + example, architecture and concepts updated, PROJECT_STATUS
+  honesty gap "No persistence for memory" retired.
+
+### Tests
+
+- 32 new offline contract tests: construction and validation (`path`
+  forms, parent-directory creation, `max_turns`), FIFO eviction and its
+  persistence across reopen, `clear()`, close/context-manager behavior,
+  two instances on one file, `:memory:`, parity with `InMemoryMemory`,
+  and the end-to-end agent/factory wiring with a reopened memory. Suite:
+  1194 → 1226 tests, coverage 99.81% (floor 95%), `ruff`, `ruff format`
+  and `mypy --strict` clean.
+
 ## [1.2.0] - 2026-11-16
 
 ### Added
@@ -421,7 +472,8 @@ The **import name** remains `nexusagent`.
   variables, and the factory layer (`create_runtime`,
   `create_application_runtime`).
 
-[Unreleased]: https://github.com/Abolfazlrwm/nexusagent/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/Abolfazlrwm/nexusagent/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/Abolfazlrwm/nexusagent/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/Abolfazlrwm/nexusagent/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/Abolfazlrwm/nexusagent/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/Abolfazlrwm/nexusagent/compare/v0.9.0...v1.0.0

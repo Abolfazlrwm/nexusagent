@@ -15,20 +15,25 @@ well as user-written subclasses — because nothing new crosses the
 Provider boundary. With an empty memory the composed prompt is the input
 byte-for-byte, so configuring memory never changes a first run.
 
-Storage is a process-local, bounded FIFO (:class:`InMemoryMemory`): zero
-dependencies, no persistence, no serialization. Custom backends
-(Redis, SQLite, ...) implement the three-method :class:`Memory` ABC.
+Storage ships in two flavors: a process-local, bounded FIFO
+(:class:`InMemoryMemory`) and a persistent backend backed by a local
+SQLite database file (:class:`SQLiteMemory`) — both dependency-free.
+Custom backends (Redis, PostgreSQL, ...) implement the three-method
+:class:`Memory` ABC.
 """
 
 from __future__ import annotations
 
+import os
+import sqlite3
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from dataclasses import dataclass
+from types import TracebackType
 
 from nexusagent.logging import get_logger
 
-__all__ = ["ConversationTurn", "InMemoryMemory", "Memory"]
+__all__ = ["ConversationTurn", "InMemoryMemory", "Memory", "SQLiteMemory"]
 
 USER_ROLE = "user"
 ASSISTANT_ROLE = "assistant"
@@ -127,6 +132,103 @@ class InMemoryMemory(Memory):
 
     def clear(self) -> None:
         self._turns.clear()
+
+
+class SQLiteMemory(Memory):
+    """Conversation memory persisted in a local SQLite database (ADR 0013).
+
+    A drop-in :class:`Memory` backend for durability beyond the current
+    process: turns live in a ``turns`` table of a SQLite database at
+    ``path`` (created on first use — missing parent directories are
+    created too), so history survives restarts and runtimes that open the
+    same file one after another see the same turns. Storage stays
+    dependency-free: ``sqlite3`` ships with Python.
+
+    The bounded-FIFO semantics match :class:`InMemoryMemory`: ``max_turns``
+    (default :data:`DEFAULT_MAX_TURNS`, validated the same way) caps the
+    stored turns and the *oldest rows are deleted* when the cap is
+    exceeded — the eviction itself is persisted. Every mutation commits
+    immediately. One ``sqlite3`` connection is opened for the lifetime of
+    the instance; the runtime never accesses it concurrently and the
+    instance is not thread-safe. Call :meth:`close` — or use the instance
+    as a context manager — when done; further use of a closed instance
+    raises :class:`sqlite3.ProgrammingError`.
+    """
+
+    def __init__(self, path: str | os.PathLike[str], max_turns: int = DEFAULT_MAX_TURNS) -> None:
+        if isinstance(max_turns, bool) or not isinstance(max_turns, int):
+            raise TypeError("max_turns must be an integer")
+
+        if max_turns < 1:
+            raise ValueError("max_turns must be at least 1")
+
+        self._path = os.fspath(path)
+        if not self._path:
+            raise ValueError("path must not be empty")
+
+        parent = os.path.dirname(self._path)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+
+        self._max_turns = max_turns
+        self._conn = sqlite3.connect(self._path)
+        self._conn.execute(
+            "CREATE TABLE IF NOT EXISTS turns ("
+            "id INTEGER PRIMARY KEY, "
+            "role TEXT NOT NULL, "
+            "text TEXT NOT NULL)"
+        )
+        self._conn.commit()
+
+    @property
+    def path(self) -> str:
+        """The database file this memory persists to."""
+        return self._path
+
+    def append(self, turn: ConversationTurn) -> None:
+        if not isinstance(turn, ConversationTurn):
+            raise TypeError("turn must be a ConversationTurn")
+
+        self._conn.execute(
+            "INSERT INTO turns (role, text) VALUES (?, ?)",
+            (turn.role, turn.text),
+        )
+        self._prune()
+        self._conn.commit()
+
+    def history(self) -> tuple[ConversationTurn, ...]:
+        rows = self._conn.execute("SELECT role, text FROM turns ORDER BY id ASC").fetchall()
+        return tuple(ConversationTurn(role=role, text=text) for role, text in rows)
+
+    def clear(self) -> None:
+        self._conn.execute("DELETE FROM turns")
+        self._conn.commit()
+
+    def close(self) -> None:
+        """Close the underlying database connection."""
+        self._conn.close()
+
+    def __enter__(self) -> SQLiteMemory:
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        self.close()
+
+    def _prune(self) -> None:
+        row = self._conn.execute("SELECT COUNT(*) FROM turns").fetchone()
+        count = row[0] if row is not None else 0
+        excess = count - self._max_turns
+        if excess > 0:
+            self._conn.execute(
+                "DELETE FROM turns WHERE id IN (SELECT id FROM turns ORDER BY id ASC LIMIT ?)",
+                (excess,),
+            )
+            _logger.debug("memory evicted %d turns beyond the cap of %d", excess, self._max_turns)
 
 
 def compose_prompt(input_text: str, history: Sequence[ConversationTurn]) -> str:

@@ -26,12 +26,12 @@ print(runtime.execute_tool("calculator", "2 + 3"))  # 5
 
 - **Zero runtime dependencies** — the whole core is the Python standard library. `pip install nexusagent-runtime` pulls nothing else.
 - **Automatic retries** — transient HTTP failures (connection errors, timeouts, 429/5xx) are retried with exponential backoff, full jitter and `Retry-After` support. See [ADR 0011](docs/adr/0011-http-retry-backoff.md).
-- **Conversation memory** — opt-in in-process memory composes remembered turns into each run's prompt, so the agent carries context across runs with any provider. See [ADR 0012](docs/adr/0012-conversation-memory.md).
+- **Conversation memory** — opt-in memory composes remembered turns into each run's prompt, so the agent carries context across runs with any provider — in-process (`InMemoryMemory`) or persisted to a local SQLite file (`SQLiteMemory`). See [ADR 0012](docs/adr/0012-conversation-memory.md) and [ADR 0013](docs/adr/0013-sqlite-memory.md).
 - **Stable public API** — 1.0 declares SemVer stability over the full root surface; a CI-pinned test fails on any accidental removal, rename or silent addition. See [ADR 0010](docs/adr/0010-1.0-api-stability-and-versioning-policy.md).
 - **Readable by design** — the core is small enough to audit in an afternoon; architecture rules are enforced by tests, not comments.
 - **Honest** — the feature list below says what exists *and what doesn't*. No fake benchmarks, no aspirational docs.
 - **Typed** — ships `py.typed`; the source itself passes `mypy --strict`.
-- **Tested** — 1140+ contract tests, ≥95% coverage floor enforced in CI.
+- **Tested** — 1200+ contract tests, ≥95% coverage floor enforced in CI.
 
 ## Features
 
@@ -53,6 +53,7 @@ print(runtime.execute_tool("calculator", "2 + 3"))  # 5
 | Streaming responses (SSE, all HTTP adapters, sync + async) | ✅ [ADR 0009](docs/adr/0009-streaming-responses.md) |
 | Retries / backoff on HTTP failures (429/5xx, jitter, `Retry-After`) | ✅ [ADR 0011](docs/adr/0011-http-retry-backoff.md) |
 | Conversation memory (opt-in, in-process, provider-agnostic) | ✅ [ADR 0012](docs/adr/0012-conversation-memory.md) |
+| Persistent conversation memory (local SQLite file, same contract) | ✅ [ADR 0013](docs/adr/0013-sqlite-memory.md) |
 | Planning, multi-agent orchestration | ❌ |
 
 ## Architecture
@@ -273,6 +274,36 @@ Failed runs record nothing, and a memory with no history composes the
 prompt byte-for-byte like the no-memory path. Design details:
 [ADR 0012](docs/adr/0012-conversation-memory.md).
 
+#### Persistent memory (SQLite)
+
+`InMemoryMemory` lives in the process and is gone when it ends. To keep
+history across restarts, hand the runtime a `SQLiteMemory`: turns live in
+a local SQLite database file (`sqlite3` is in the standard library, so
+still zero dependencies), the bounded-FIFO semantics and `max_turns` cap
+match the in-process backend, and the oldest rows are evicted the same
+way — the eviction itself is persisted.
+
+```python
+from nexusagent import SQLiteMemory, create_runtime
+
+memory = SQLiteMemory("session.db", max_turns=50)  # created on first use
+runtime = create_runtime(memory=memory)
+
+runtime.run("My name is Sara")
+memory.close()
+
+# A later process reopens the same file and remembers:
+memory = SQLiteMemory("session.db", max_turns=50)
+runtime = create_runtime(memory=memory)
+print(runtime.run("What is my name?").output)  # the model still knows
+memory.close()
+```
+
+Every mutation commits immediately; `close()` (or using the instance as a
+context manager) releases the database connection, and runtimes that open
+the same file one after another see the same turns. Design details:
+[ADR 0013](docs/adr/0013-sqlite-memory.md).
+
 ### Async runtime
 
 The async layer mirrors the sync contracts one-to-one — `await runtime.run(...)`,
@@ -327,6 +358,7 @@ All examples run offline, with no API keys:
 - [`examples/tool_loop_demo.py`](examples/tool_loop_demo.py) — the autonomous tool loop over local HTTP
 - [`examples/streaming.py`](examples/streaming.py) — streamed text through `on_delta`, offline
 - [`examples/memory.py`](examples/memory.py) — conversation memory across runs, offline
+- [`examples/sqlite_memory.py`](examples/sqlite_memory.py) — persistent SQLite memory across restarts, offline
 - [`examples/async_tool_loop.py`](examples/async_tool_loop.py) — the async tool loop with an awaited tool
 - [`examples/http_provider_local.py`](examples/http_provider_local.py) — `http` provider against a local backend
 

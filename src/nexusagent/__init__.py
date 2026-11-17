@@ -21,7 +21,7 @@ from nexusagent.async_runtime import AsyncRuntime, create_async_runtime
 from nexusagent.async_tool_executor import AsyncToolExecutor
 from nexusagent.config import Settings
 from nexusagent.factory import create_provider
-from nexusagent.memory import ConversationTurn, InMemoryMemory, Memory
+from nexusagent.memory import ConversationTurn, InMemoryMemory, Memory, SQLiteMemory
 from nexusagent.provider import (
     AsyncProvider,
     Provider,
@@ -44,7 +44,7 @@ from nexusagent.tool import AsyncTool, Tool
 from nexusagent.tool_executor import ToolExecutionError, ToolExecutor
 from nexusagent.tool_registry import ToolRegistry
 
-__version__ = "1.2.0"
+__version__ = "1.3.0"
 
 __all__ = [
     # Agent layer (sync and async)
@@ -72,6 +72,8 @@ __all__ = [
     "ProviderResponseError",
     "ProviderStreamEvent",
     "Runtime",
+    # Persistent conversation memory (ADR 0013)
+    "SQLiteMemory",
     "ScriptedProvider",
     # Configuration
     "Settings",
