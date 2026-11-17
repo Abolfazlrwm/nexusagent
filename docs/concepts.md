@@ -112,8 +112,12 @@ empty history the prompt is the input byte-for-byte, so configuring
 memory never changes a first run.
 
 The built-in `InMemoryMemory` is a bounded process-local FIFO
-(`max_turns=100`, oldest evicted first, `clear()` to forget). Implement
-the three-method `Memory` ABC (`append`, `history`, `clear`) for a custom
+(`max_turns=100`, oldest evicted first, `clear()` to forget). For history
+that outlives the process, `SQLiteMemory(path, max_turns=...)` persists
+turns to a local SQLite database file — same FIFO semantics, every
+mutation committed immediately, `close()` or a `with` block releases the
+connection, and reopening the file resumes the same history (ADR 0013).
+Implement the three-method `Memory` ABC (`append`, `history`, `clear`) for a custom
 backend. `runtime.memory` exposes the configured instance (`None` when
 absent). The provider contract is untouched — memory works with every
 provider, sync and async alike.
@@ -170,7 +174,7 @@ errors, the Tool layer (`Tool`, `AsyncTool`, `ToolRegistry`,
 `ToolExecutor`, `AsyncToolExecutor`), the offline testing providers
 (`FakeProvider`, `ScriptedProvider`), `SyncProviderAdapter` and the
 conversation-memory classes (`ConversationTurn`, `Memory`,
-`InMemoryMemory`). Semantic versioning governs it: within major version 1
+`InMemoryMemory`, `SQLiteMemory`). Semantic versioning governs it: within major version 1
 nothing there is renamed, moved or removed. Vendor wire adapters, the
 built-in demo tools and the internal factories stay off the root and are
 reached via `create_provider()` / `Settings` / a registry; deep submodule

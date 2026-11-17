@@ -4,21 +4,22 @@ This file exists so that whoever picks this project back up — even months
 later — can understand exactly what works, what doesn't exist yet, and
 where to resume without re-reading the entire history.
 
-## Current state: WORKING and STABLE — 1.2
+## Current state: WORKING and STABLE — 1.3
 
 - **1.0.0 declared API stability** (ADR 0010): the full public surface is
   `nexusagent.__all__` at the package root, governed by SemVer and pinned
   by `tests/test_public_api.py`; vendor wire adapters, built-in demo tools
   and internal factories stay internal by design. Since 1.0 the surface
   only grew additively: 33 names at 1.0.0, 36 at 1.2.0 (conversation
-  memory, ADR 0012).
-- **1.1.0 added automatic HTTP retries** (ADR 0011); **1.2.0 adds
-  in-process conversation memory** (ADR 0012) — both additive, both
+  memory, ADR 0012), 37 at 1.3.0 (persistent SQLite memory, ADR 0013).
+- **1.1.0 added automatic HTTP retries** (ADR 0011); **1.2.0 added
+  in-process conversation memory** (ADR 0012); **1.3.0 adds the
+  persistent SQLite memory backend** (ADR 0013) — all additive, all
   offline-tested.
-- 1194 tests, all passing.
+- 1226 tests, all passing.
 - `ruff check .` and `ruff format --check .` — clean.
 - `mypy --strict` — clean.
-- `pytest` enforces a coverage floor of 95% (currently ~99.80%).
+- `pytest` enforces a coverage floor of 95% (currently ~99.81%).
 - `python scripts/check.py` — passes.
 - No known bugs, no known regressions, no unfinished/half-done code.
 
@@ -64,6 +65,14 @@ A real, working, tested agent runtime that can:
   `compose_prompt()`. Provider-agnostic (the Provider contract is
   untouched), sync and async, failed runs record nothing; an empty
   memory composes the input byte-for-byte.
+- **Keep memory across restarts with `SQLiteMemory`** (ADR 0013): the
+  same three-method contract and FIFO semantics, persisted to a local
+  SQLite database file (stdlib `sqlite3`, still zero dependencies).
+  `SQLiteMemory(path, max_turns=...)` creates the file and missing
+  parent directories on first use, commits every mutation immediately,
+  evicts the oldest rows beyond the cap (persistently), and supports
+  `close()` / context-manager lifetime; runtimes that reopen the same
+  file see the same turns.
 - **Run the same runtime under asyncio** (`AsyncAgent`, `AsyncRuntime`,
   `create_async_runtime`): the sync `Agent`/`Runtime` stay first-class, and
   the async layer mirrors them contract-for-contract. Sync providers (fake,
@@ -96,10 +105,11 @@ lower layers from depending upward on higher ones.
   (`docs/protocol.md`) covers everything else. Native adapters for other
   vendors are future work. The `http` wire protocol has no streaming mode
   of its own yet.
-- **No persistence for memory.** Conversation memory (ADR 0012) is
-  process-local; there is no built-in serialization, session store or
-  cross-process sharing (custom `Memory` backends are the extension
-  point).
+- **Memory has no network backend.** Conversation memory is either
+  process-local (`InMemoryMemory`) or persisted to a local SQLite file
+  (`SQLiteMemory`, ADR 0013); there is no built-in Redis/PostgreSQL
+  session store or cross-machine sharing (custom `Memory` backends are
+  the extension point).
 - **No planning or multi-agent orchestration.** Within a run the loop is
   single-agent: one input, one final answer.
 
@@ -107,10 +117,11 @@ lower layers from depending upward on higher ones.
 
 1. ~~Release 1.1.0 (HTTP retries/backoff, ADR 0011)~~ — released.
 2. ~~In-process memory between runs (ADR 0012)~~ — released in 1.2.0.
-3. Native per-vendor history threading (an additive `history` keyword on
+3. ~~Persistent SQLite memory backend (ADR 0013)~~ — released in 1.3.0.
+4. Native per-vendor history threading (an additive `history` keyword on
    the Provider contract, rehydrated by each adapter) — a candidate for a
    later minor release; must remain additive per ADR 0010.
-4. Planning / multi-agent orchestration — each with its own ADR; do not
+5. Planning / multi-agent orchestration — each with its own ADR; do not
    add them ad hoc. Under the 1.0 policy everything stays additive; no
    public name may move without a deprecation release.
 

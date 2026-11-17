@@ -33,7 +33,7 @@ flowchart TB
         ANP["anthropic_provider.py"]
         GNP["gemini_provider.py"]
         TL["tool.py (Tool / AsyncTool ABCs)"]
-        MEM["memory.py (ConversationTurn / Memory / InMemoryMemory)"]
+        MEM["memory.py (ConversationTurn / Memory / InMemoryMemory / SQLiteMemory)"]
         CT["*_tool.py (built-ins)"]
         CF["config.py (Settings)"]
         LG["logging.py"]
@@ -80,7 +80,7 @@ flowchart TB
 | `async_agent.py` | `AsyncAgent`: awaited mirror of the bounded tool loop (ADR 0006); same memory contract as the sync agent (ADR 0012) |
 | `async_runtime.py` | `AsyncRuntime` facade + `create_async_runtime()` (ADR 0006) |
 | `runtime.py` | Facade over `Agent` (`run`, `execute_tool`, `list_tools`, `memory`) + `create_runtime` |
-| `memory.py` | In-process conversation memory (ADR 0012): `ConversationTurn`, the `Memory` storage ABC, the bounded `InMemoryMemory` FIFO and `compose_prompt()` |
+| `memory.py` | Conversation memory (ADR 0012): `ConversationTurn`, the `Memory` storage ABC, `compose_prompt()`; built-ins `InMemoryMemory` (bounded process-local FIFO) and `SQLiteMemory` (persistent local SQLite file, ADR 0013) |
 | `config.py` | `Settings` from `NEXUS_*` env vars; local validation, no network |
 | `factory.py` | `create_provider(name, config)` |
 | `tool_factory.py` / `runtime_factory.py` / `application.py` | Composition: built-in tools → `Runtime` → `create_application_runtime()` |
