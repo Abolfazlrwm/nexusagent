@@ -891,3 +891,50 @@ def test_dunder_main_entrypoint_runs_cli(monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "echo" in out
     assert "uppercase" in out
+
+
+# --- --version flag ---------------------------------------------------------
+
+
+def test_cli_version_flag_exits_zero():
+    result = run_cli("--version")
+
+    assert result.returncode == 0
+    assert result.stderr == ""
+
+
+def test_cli_version_flag_prints_the_package_version():
+    import importlib.metadata
+
+    import nexusagent
+
+    result = run_cli("--version")
+
+    assert result.stdout.strip() == f"nexusagent {nexusagent.__version__}"
+    assert nexusagent.__version__ == importlib.metadata.version("nexusagent-runtime")
+
+
+def test_cli_version_flag_works_before_any_provider_configuration():
+    """--version must not require NEXUS_* env vars, a provider, or input text."""
+    import nexusagent
+
+    result = run_cli("--version", env={"NEXUS_PROVIDER": "http", "NEXUS_API_KEY": "x"})
+
+    assert result.returncode == 0
+    assert result.stdout.strip() == f"nexusagent {nexusagent.__version__}"
+
+
+def test_cli_version_flag_does_not_perform_network_access(monkeypatch, capsys):
+    """--version short-circuits before any runtime construction."""
+    import nexusagent
+    from nexusagent import main as main_module
+
+    def _explode(*args, **kwargs):
+        raise AssertionError("no runtime/provider construction is allowed for --version")
+
+    monkeypatch.setattr(main_module, "create_application_runtime", _explode)
+    monkeypatch.setattr(main_module, "Settings", _explode)
+    monkeypatch.setattr(sys, "argv", ["nexusagent", "--version"])
+
+    main()
+    assert capsys.readouterr().out.strip() == f"nexusagent {nexusagent.__version__}"

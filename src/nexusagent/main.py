@@ -2,6 +2,7 @@ import argparse
 import sys
 from dataclasses import replace
 
+import nexusagent
 from nexusagent.application import Runtime, create_application_runtime
 from nexusagent.config import Settings
 from nexusagent.provider import ProviderError
@@ -52,15 +53,34 @@ def main() -> None:
         _run_tool_command(argv[1:])
         return
 
-    parser = argparse.ArgumentParser(prog="nexusagent")
-    parser.add_argument("input_text", help="input text to run through the agent")
+    parser = argparse.ArgumentParser(
+        prog="nexusagent",
+        description="Run a prompt through the NexusAgent runtime.",
+    )
+    parser.add_argument(
+        "input_text",
+        nargs="?",
+        help="input text to run through the agent",
+    )
     parser.add_argument("--provider", help="provider to use (overrides NEXUS_PROVIDER)")
     parser.add_argument(
         "--stream",
         action="store_true",
         help="print provider text as it is generated (streaming backends only)",
     )
+    parser.add_argument(
+        "--version",
+        action="store_true",
+        help="print the installed version and exit",
+    )
     args = parser.parse_args(argv)
+
+    if args.version:
+        print(f"nexusagent {nexusagent.__version__}")
+        return
+
+    if args.input_text is None:
+        parser.error("the following arguments are required: input_text")
 
     settings = Settings.from_env()
     if args.provider is not None:

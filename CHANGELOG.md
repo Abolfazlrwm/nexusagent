@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-11-18
+
+### Added
+
+- **`nexusagent --version`** — prints the installed version (`nexusagent
+  X.Y.Z`) and exits before any runtime construction: no input text, no
+  `NEXUS_*` environment variables, no provider, no network access. The
+  positional prompt became optional (`nargs="?"`) with an explicit
+  `parser.error` when it is missing, so behavior for every existing
+  invocation is unchanged. 4 new CLI tests (1226 → 1230).
+- **Live in-browser demo** at
+  <https://abolfazlrwm.github.io/nexusagent/> — Pyodide loads the real
+  wheel from PyPI and runs the actual agent loop, bounded tool loop
+  (calculator), conversation memory and streaming right on the page,
+  with a scripted model and a trace log. Repo-level deliverable: the
+  demo page ships on the `gh-pages` branch; no package code.
+
+### Changed
+
+- `pyproject.toml` gains a `Documentation` project URL pointing at the
+  demo site; `.github/CODEOWNERS` added; README gains a live-demo badge
+  and a "try it live" callout above the quick start.
+
 ## [1.3.0] - 2026-11-18
 
 ### Added
@@ -472,7 +495,8 @@ The **import name** remains `nexusagent`.
   variables, and the factory layer (`create_runtime`,
   `create_application_runtime`).
 
-[Unreleased]: https://github.com/Abolfazlrwm/nexusagent/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/Abolfazlrwm/nexusagent/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/Abolfazlrwm/nexusagent/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/Abolfazlrwm/nexusagent/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/Abolfazlrwm/nexusagent/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/Abolfazlrwm/nexusagent/compare/v1.0.0...v1.1.0
