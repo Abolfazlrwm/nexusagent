@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NexusAgent — the readable AI agent runtime · live demo</title>
+<meta name="description" content="Run the real NexusAgent agent loop, tool loop and conversation memory in your browser. Zero dependencies, typed, contract-tested — loaded straight from PyPI via Pyodide.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⬡</text></svg>">
+<script src="https://cdn.jsdelivr.net/pyodide/v314.0.8/full/pyodide.js"></script>
+<style>
+  :root {
+    --bg: #0b0f14; --bg2: #0f151d; --panel: #121924; --panel2: #161f2c;
+    --line: #1f2a38; --text: #e7ecf3; --muted: #8b98a9; --faint: #5d6b7d;
+    --accent: #6d6af8; --accent2: #22d3ee; --green: #34d399; --amber: #fbbf24;
+    --red: #f87171; --blue: #7dd3fc; --violet: #c4b5fd; --pink: #f472b6; --slate: #94a3b8;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: Inter, "SF Pro Text", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); line-height: 1.6; }
+  a { color: var(--accent2); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+  /* nav */
+  nav { position: sticky; top: 0; z-index: 50; background: rgba(11,15,20,.82); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+  .nav-in { display: flex; align-items: center; gap: 18px; height: 60px; }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; letter-spacing: .2px; color: var(--text); }
+  .logo .hex { color: var(--accent2); font-size: 20px; }
+  .logo b { background: linear-gradient(90deg, var(--accent), var(--accent2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  nav .spacer { flex: 1; }
+  nav a.item { color: var(--muted); font-size: 14px; padding: 6px 10px; border-radius: 8px; }
+  nav a.item:hover { color: var(--text); background: var(--panel2); text-decoration: none; }
+
+  /* hero */
+  header.hero { padding: 84px 0 48px; position: relative; overflow: hidden; }
+  header.hero::before { content: ""; position: absolute; inset: -40% -20% auto; height: 150%;
+    background: radial-gradient(600px 300px at 25% 20%, rgba(109,106,248,.16), transparent 60%),
+                radial-gradient(700px 350px at 75% 10%, rgba(34,211,238,.12), transparent 60%);
+    pointer-events: none; }
+  .hero .wrap { position: relative; }
+  h1 { font-size: clamp(34px, 6vw, 56px); line-height: 1.12; letter-spacing: -1px; font-weight: 800; margin: 18px 0 14px; }
+  h1 .grad { background: linear-gradient(92deg, var(--accent) 0%, var(--accent2) 55%, var(--green) 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .tagline { color: var(--muted); font-size: clamp(16px, 2.2vw, 19px); max-width: 760px; }
+  .tagline b { color: var(--text); }
+  .badges { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+  .badges img { height: 20px; border-radius: 4px; }
+  .cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
+  .btn { display: inline-flex; align-items: center; gap: 9px; padding: 11px 18px; border-radius: 12px;
+         font-size: 15px; font-weight: 600; border: 1px solid var(--line); cursor: pointer; transition: .15s; }
+  .btn:hover { text-decoration: none; transform: translateY(-1px); }
+  .btn.primary { background: linear-gradient(92deg, var(--accent), #4f46e5); color: #fff; border-color: transparent;
+                 box-shadow: 0 8px 24px rgba(109,106,248,.25); }
+  .btn.primary:hover { box-shadow: 0 10px 30px rgba(109,106,248,.4); }
+  .btn.ghost { background: var(--panel); color: var(--text); }
+  .btn.ghost:hover { border-color: var(--accent); }
+
+  section { padding: 44px 0; }
+  .kicker { color: var(--accent2); font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; }
+  h2 { font-size: clamp(24px, 3.6vw, 34px); letter-spacing: -.5px; margin: 8px 0 6px; font-weight: 750; }
+  .sub { color: var(--muted); max-width: 780px; }
+
+  /* demo */
+  .demo-shell { display: grid; grid-template-columns: 340px 1fr; gap: 18px; margin-top: 26px; }
+  @media (max-width: 880px) { .demo-shell { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+  .panel .head { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--panel2); }
+  .dot { width: 11px; height: 11px; border-radius: 50%; }
+  .dot.r { background: #ff5f57; } .dot.y { background: #febc2e; } .dot.g { background: #28c840; }
+  .panel .title { color: var(--muted); font-size: 13px; font-family: var(--mono); margin-left: 4px; }
+  .status { margin-left: auto; font-size: 12px; font-family: var(--mono); color: var(--faint);
+            border: 1px solid var(--line); padding: 3px 10px; border-radius: 99px; }
+  .status.ready { color: var(--green); border-color: rgba(52,211,153,.4); }
+  .status.loading { color: var(--amber); border-color: rgba(251,191,36,.4); }
+
+  .scenarios { display: flex; flex-direction: column; gap: 10px; padding: 16px; }
+  .scen { text-align: left; background: var(--panel2); border: 1px solid var(--line); color: var(--text);
+          border-radius: 12px; padding: 13px 15px; cursor: pointer; transition: .15s; width: 100%; }
+  .scen:hover:not(:disabled) { border-color: var(--accent); transform: translateX(2px); }
+  .scen:disabled { opacity: .45; cursor: not-allowed; }
+  .scen b { display: flex; align-items: center; gap: 8px; font-size: 14.5px; }
+  .scen span { display: block; color: var(--muted); font-size: 12.5px; margin-top: 3px; line-height: 1.45; }
+  .scen .ico { font-size: 16px; }
+  .user-row { display: flex; gap: 8px; margin-top: 4px; }
+  .user-row input { flex: 1; background: var(--bg2); border: 1px solid var(--line); color: var(--text);
+                    border-radius: 10px; padding: 11px 13px; font-size: 14px; font-family: var(--mono); outline: none; }
+  .user-row input:focus { border-color: var(--accent); }
+  .user-row button { background: linear-gradient(92deg, var(--accent), #4f46e5); border: none; color: #fff;
+                     font-weight: 600; padding: 0 16px; border-radius: 10px; cursor: pointer; font-size: 14px; }
+  .user-row button:disabled { opacity: .45; cursor: not-allowed; }
+  .hint { color: var(--faint); font-size: 12px; padding: 0 16px 14px; line-height: 1.5; }
+  .hint code { color: var(--slate); font-family: var(--mono); background: var(--bg2); padding: 1px 5px; border-radius: 5px; }
+
+  .term { font-family: var(--mono); font-size: 13px; line-height: 1.75; background: #0a0e13; height: 520px;
+          overflow-y: auto; padding: 16px 18px; }
+  .term .line { white-space: pre-wrap; word-break: break-word; display: flex; gap: 10px; }
+  .term .line .t { color: var(--faint); flex-shrink: 0; }
+  .term .kind { flex-shrink: 0; min-width: 92px; font-weight: 600; }
+  .k-run { color: var(--pink); } .k-provider { color: var(--blue); } .k-model { color: var(--violet); }
+  .k-tool { color: var(--amber); } .k-delta { color: var(--slate); } .k-answer { color: var(--green); }
+  .k-memory { color: var(--accent2); } .k-info { color: var(--faint); } .k-error { color: var(--red); }
+  .term .msg { color: #cdd6e0; }
+  .term .line.answer .msg { color: var(--green); }
+  .cursor { display: inline-block; width: 8px; height: 15px; background: var(--accent2); vertical-align: -2px;
+            animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* features */
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin-top: 26px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; transition: .15s; }
+  .card:hover { border-color: rgba(109,106,248,.5); transform: translateY(-2px); }
+  .card .ico { font-size: 22px; }
+  .card h3 { font-size: 15.5px; margin: 10px 0 6px; }
+  .card p { color: var(--muted); font-size: 13.5px; line-height: 1.55; }
+
+  /* code */
+  .code-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; margin-top: 26px; }
+  .code-card { background: #0a0e13; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+  .code-card .head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px;
+                     border-bottom: 1px solid var(--line); background: var(--panel2); color: var(--muted); font-size: 12.5px; font-family: var(--mono); }
+  .copy { background: none; border: 1px solid var(--line); color: var(--muted); font-size: 11.5px; padding: 4px 10px;
+          border-radius: 7px; cursor: pointer; font-family: var(--mono); }
+  .copy:hover { color: var(--text); border-color: var(--accent); }
+  .code-card pre { padding: 16px; font-family: var(--mono); font-size: 13px; line-height: 1.7; overflow-x: auto; color: #cdd6e0; }
+  .kw { color: var(--violet); } .st { color: var(--green); } .fn { color: var(--blue); } .cm { color: var(--faint); }
+
+  /* ADRs */
+  .adr-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
+  .adr { display: inline-flex; align-items: center; gap: 7px; background: var(--panel); border: 1px solid var(--line);
+         padding: 8px 13px; border-radius: 99px; color: var(--muted); font-size: 13px; font-family: var(--mono); transition: .15s; }
+  .adr:hover { border-color: var(--accent2); color: var(--text); text-decoration: none; }
+
+  footer { border-top: 1px solid var(--line); margin-top: 40px; padding: 28px 0 44px; color: var(--faint); font-size: 13.5px; }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; align-items: center; }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap nav-in">
+    <a class="logo" href="#top"><span class="hex">⬡</span>Nexus<b>Agent</b></a>
+    <div class="spacer"></div>
+    <a class="item" href="#demo">Live demo</a>
+    <a class="item" href="#features">Features</a>
+    <a class="item" href="https://github.com/Abolfazlrwm/nexusagent/blob/main/README.md">Docs</a>
+    <a class="item" href="https://github.com/Abolfazlrwm/nexusagent">GitHub</a>
+    <a class="item" href="https://pypi.org/project/nexusagent-runtime/">PyPI</a>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <div class="wrap">
+    <div class="badges">
+      <img alt="PyPI" src="https://img.shields.io/pypi/v/nexusagent-runtime?style=flat&colorA=121924&colorB=6d6af8">
+      <img alt="Python" src="https://img.shields.io/pypi/pyversions/nexusagent-runtime?style=flat&colorA=121924&colorB=1f2a38">
+      <img alt="CI" src="https://github.com/Abolfazlrwm/nexusagent/actions/workflows/ci.yml/badge.svg">
+      <img alt="License" src="https://img.shields.io/badge/license-MIT-blue?style=flat&colorA=121924&colorB=1f2a38">
+      <img alt="Tests" src="https://img.shields.io/badge/tests-1230_passing-34d399?style=flat&colorA=121924&colorB=1f2a38">
+    </div>
+    <h1>The <span class="grad">readable</span> AI agent runtime.</h1>
+    <p class="tagline">Zero runtime dependencies, a core you can read in one sitting, a bounded
+      autonomous tool loop, streaming, async, conversation memory — and an <b>honest</b> feature list.
+      The page below runs the <b>real wheel from PyPI</b> inside your browser.</p>
+    <div class="cta">
+      <a class="btn primary" href="#demo">▶&nbsp; Run the live demo</a>
+      <a class="btn ghost" href="https://github.com/Abolfazlrwm/nexusagent">★&nbsp; GitHub</a>
+      <a class="btn ghost" href="https://pypi.org/project/nexusagent-runtime/">⬡&nbsp; PyPI</a>
+    </div>
+  </div>
+</header>
+
+<section id="demo">
+  <div class="wrap">
+    <div class="kicker">Live demo · Pyodide + the actual PyPI wheel</div>
+    <h2>Watch the agent loop think — in your browser</h2>
+    <p class="sub">No install, no API keys. Click <b>Boot runtime</b> and this page loads CPython (WASM)
+      plus <code style="font-family:var(--mono)">nexusagent-runtime==1.4.0</code> straight from PyPI.
+      The “model” is a small scripted router so everything stays offline and deterministic — the
+      <b>agent loop, tool execution, memory and streaming are the real package code</b>, traced line by line.</p>
+
+    <div class="demo-shell">
+      <div class="panel">
+        <div class="head">
+          <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+          <div class="title">scenarios</div>
+          <div class="status" id="boot-status">not loaded</div>
+        </div>
+        <div class="scenarios">
+          <button class="scen" id="btn-boot" onclick="bootRuntime()">
+            <b><span class="ico">⬡</span> Boot runtime</b>
+            <span>Loads Pyodide + the real wheel (~15&nbsp;MB, one time). Subsequent runs are instant.</span>
+          </button>
+          <button class="scen" onclick="runScenario('tool_loop')" disabled>
+            <b><span class="ico">🛠</span> Bounded tool loop</b>
+            <span>The model asks for the <code>calculator</code> tool, the agent executes it and feeds the result back — watch both provider calls.</span>
+          </button>
+          <button class="scen" onclick="runScenario('memory')" disabled>
+            <b><span class="ico">🧠</span> Memory across runs</b>
+            <span>Run one records the exchange; run two’s composed prompt carries the transcript — the model remembers.</span>
+          </button>
+          <button class="scen" onclick="runScenario('stream')" disabled>
+            <b><span class="ico">🌊</span> Streaming</b>
+            <span>Text fragments arrive one by one through <code>on_delta</code> and assemble into the final answer.</span>
+          </button>
+          <div class="user-row">
+            <input id="user-input" placeholder="Your prompt — try: what is 144 / 12?" disabled
+                   onkeydown="if(event.key==='Enter')runUserPrompt()">
+            <button id="btn-run" onclick="runUserPrompt()" disabled>Run</button>
+          </div>
+          <div class="hint">
+            Type any prompt: arithmetic like <code>what is (…) — number operator number</code> routes to the
+            <code>calculator</code> tool, <code>my name is …</code> is remembered, everything else gets a scripted echo.
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="head">
+          <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+          <div class="title">agent trace — real code paths</div>
+        </div>
+        <div class="term" id="term"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="features">
+  <div class="wrap">
+    <div class="kicker">Why NexusAgent</div>
+    <h2>Small core, honest features</h2>
+    <p class="sub">Everything below is contract-tested; the public surface is pinned by CI (ADR 0010).</p>
+    <div class="grid">
+      <div class="card"><div class="ico">📦</div><h3>Zero runtime dependencies</h3><p>The whole core is the Python standard library. <code>pip install nexusagent-runtime</code> pulls nothing else.</p></div>
+      <div class="card"><div class="ico">🔁</div><h3>Bounded autonomous tool loop</h3><p>Providers request tools; the agent executes and re-invokes them, bounded by <code>max_iterations</code>.</p></div>
+      <div class="card"><div class="ico">🧠</div><h3>Conversation memory</h3><p>Opt-in <code>Memory</code>: in-process FIFO or persisted <code>SQLiteMemory</code> — remembered turns compose into each prompt.</p></div>
+      <div class="card"><div class="ico">🌊</div><h3>Streaming</h3><p>SSE text deltas from OpenAI, Anthropic and Gemini adapters, sync and async, through <code>on_delta</code>.</p></div>
+      <div class="card"><div class="ico">⚡</div><h3>Async mirror</h3><p><code>AsyncAgent</code>/<code>AsyncRuntime</code> mirror every sync contract; sync providers keep working via a thread bridge.</p></div>
+      <div class="card"><div class="ico">🛡</div><h3>Automatic retries</h3><p>Transient HTTP failures retried with exponential backoff, full jitter and <code>Retry-After</code> support.</p></div>
+      <div class="card"><div class="ico">🔒</div><h3>Stable public API</h3><p>SemVer over the full root surface; a CI-pinned test fails on any accidental removal, rename or silent addition.</p></div>
+      <div class="card"><div class="ico">✅</div><h3>Typed & tested</h3><p><code>py.typed</code>, <code>mypy --strict</code> clean, 1230 offline tests, 99.7%+ coverage with a 95% CI floor.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="code">
+  <div class="wrap">
+    <div class="kicker">Quick start</div>
+    <h2>Five lines to a working agent</h2>
+    <div class="code-row">
+      <div class="code-card">
+        <div class="head"><span>quickstart.py — offline by default</span><button class="copy" onclick="copyCode(this)">copy</button></div>
+        <pre><code><span class="kw">from</span> nexusagent <span class="kw">import</span> create_application_runtime
+
+runtime = <span class="fn">create_application_runtime</span>()   <span class="cm"># offline `fake` provider</span>
+
+result = runtime.<span class="fn">run</span>(<span class="st">"Hello NexusAgent"</span>)
+<span class="fn">print</span>(result.output)                     <span class="cm"># fake response: Hello NexusAgent</span>
+<span class="fn">print</span>(runtime.<span class="fn">execute_tool</span>(<span class="st">"calculator"</span>, <span class="st">"2 + 3"</span>))  <span class="cm"># 5</span></code></pre>
+      </div>
+      <div class="code-card">
+        <div class="head"><span>memory.py — context across restarts</span><button class="copy" onclick="copyCode(this)">copy</button></div>
+        <pre><code><span class="kw">from</span> nexusagent <span class="kw">import</span> SQLiteMemory, create_runtime
+
+memory = <span class="fn">SQLiteMemory</span>(<span class="st">"session.db"</span>, max_turns=<span class="st">50</span>)
+runtime = <span class="fn">create_runtime</span>(memory=memory)
+
+runtime.<span class="fn">run</span>(<span class="st">"My name is Sara"</span>)
+memory.<span class="fn">close</span>()                           <span class="cm"># a later process…</span>
+
+memory = <span class="fn">SQLiteMemory</span>(<span class="st">"session.db"</span>, max_turns=<span class="st">50</span>)
+runtime = <span class="fn">create_runtime</span>(memory=memory)
+<span class="fn">print</span>(runtime.<span class="fn">run</span>(<span class="st">"What is my name?"</span>).output)
+<span class="cm"># the model still knows — the file remembers</span></code></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="adr">
+  <div class="wrap">
+    <div class="kicker">Architecture decisions</div>
+    <h2>Thirteen ADRs, all readable</h2>
+    <p class="sub">Every decision that shaped the runtime is recorded, dated and linked.</p>
+    <div class="adr-row">
+      <a class="adr" href="https://github.com/Abolfazlrwm/nexusagent/blob/main/docs/adr/0001-sync-first-core.md">0001 · sync-first core</a>
+      <a class="adr" href="https://github.com/Abolfazlrwm/nexusagent/blob/main/docs/adr/0002-tool-call-wire-format-and-agent-loop.md">0002 · tool loop</a>
+      <a class="adr" href="https://github.com/Abolfazlrwm/nexusagent/blob/main/docs/adr/0005-openai-compatible-provider.md">0005 · OpenAI</a>
+      <a class="adr" href="https://github.com/Abolfazlrwm/nexusagent/blob/main/docs/adr/0006-async-execution-model.md">0006 · async</a>
+      <a class="adr" href="https://github.com/Abolfazlrwm/nexusagent/blob/main/docs/adr/0007-anthropic-compatible-provider.md">0007 · Anthropic</a>
+      <a class="adr" href="https://github.com/Abolfazlrwm/nexusagent/blob/main/docs/adr/0008-gemini-provider.md">0008 · Gemini</a>
+      <a class="adr" href="https://github.com/Abolfazlrwm/nexusagent/blob/main/docs/adr/0009-streaming-responses.md">0009 · streaming</a>
+      <a class="adr" href="https://github.com/Abolfazlrwm/nexusagent/blob/main/docs/adr/0010-1.0-api-stability-and-versioning-policy.md">0010 · API stability</a>
+      <a class="adr" href="https://github.com/Abolfazlrwm/nexusagent/blob/main/docs/adr/0011-http-retry-backoff.md">0011 · retries</a>
+      <a class="adr" href="https://github.com/Abolfazlrwm/nexusagent/blob/main/docs/adr/0012-conversation-memory.md">0012 · memory</a>
+      <a class="adr" href="https://github.com/Abolfazlrwm/nexusagent/blob/main/docs/adr/0013-sqlite-memory.md">0013 · SQLite memory</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div>⬡ <b>NexusAgent</b> — MIT license · built by <a href="https://github.com/Abolfazlrwm">Abolfazl Ranjbaran</a></div>
+    <div><a href="https://github.com/Abolfazlrwm/nexusagent">GitHub</a> · <a href="https://pypi.org/project/nexusagent-runtime/">PyPI</a> · <a href="https://github.com/Abolfazlrwm/nexusagent/blob/main/CHANGELOG.md">Changelog</a> · <a href="https://github.com/Abolfazlrwm/nexusagent/blob/main/PROJECT_STATUS.md">Status</a></div>
+  </div>
+</footer>
+
+<!-- The exact demo code, executed by Pyodide after the wheel is installed. -->
+<script type="text/python" id="demo-py">
+import re
+
+try:
+    import js as _js
+    def _emit(kind, msg):
+        _js.logTrace(msg, kind)
+except ImportError:
+    def _emit(kind, msg):
+        print(f"[{kind}] {msg}")
+
+import nexusagent
+
+from nexusagent import (Agent, InMemoryMemory, Provider, StreamTextDelta,
+                        TextResponse, ToolCallRequest, ToolExecutor,
+                        ToolResult, ToolSpec)
+from nexusagent.tool_factory import create_tool_registry
+
+_MATH = re.compile(r"(-?\d+(?:\.\d+)?)\s*([+\-*/])\s*(-?\d+(?:\.\d+)?)")
+_NAME = re.compile(r"my name is ([A-Za-z]+)", re.IGNORECASE)
+_WHO = re.compile(r"what('| i)?s my name|who am i\b", re.IGNORECASE)
+
+
+class RouterProvider(Provider):
+    """A scripted stand-in for the LLM: routes math to tools, else answers text."""
+
+    def __init__(self):
+        self.calls = 0
+
+    def _last_input(self, prompt):
+        return prompt.strip().splitlines()[-1]
+
+    def generate(self, prompt):
+        return f"(scripted model) You said: {self._last_input(prompt)}"
+
+    def generate_response(self, prompt, *, tools=(), tool_results=()):
+        self.calls += 1
+        _emit("provider", f"provider call #{self.calls} — prompt received "
+                          f"({len(prompt)} chars, tools={[t.name for t in tools]})")
+
+        if tool_results:
+            result = tool_results[-1]
+            if result.is_error:
+                _emit("error", f"tool failed: {result.output}")
+                return TextResponse(f"The calculator failed: {result.output}")
+            _emit("tool", f"model saw {result.tool_name}({result.tool_input!r}) = {result.output}")
+            return TextResponse(f"{result.tool_input} equals {result.output}.")
+
+        text = self._last_input(prompt)
+        match = _MATH.search(text)
+        if match and any(t.name == "calculator" for t in tools):
+            expression = text.strip() if _MATH.fullmatch(text.strip()) else match.group(0)
+            _emit("model", f"model requests tool: calculator({expression!r})")
+            return ToolCallRequest("calculator", expression)
+
+        name = _NAME.search(text)
+        if name:
+            return TextResponse(f"Nice to meet you, {name.group(1)}! I'll remember your name.")
+
+        if _WHO.search(text):
+            remembered = re.search(r"user: .*my name is ([A-Za-z]+)", prompt, re.IGNORECASE)
+            if remembered:
+                _emit("model", "model answers from the remembered transcript")
+                return TextResponse(f"Your name is {remembered.group(1)} — remembered from an earlier run.")
+            return TextResponse("I don't know your name yet — tell me first.")
+
+        _emit("model", "model answers with text (no tool needed)")
+        return TextResponse(f"(scripted model) You said: {text}")
+
+    def stream_response(self, prompt, *, tools=(), tool_results=()):
+        response = self.generate_response(prompt, tools=tools, tool_results=tool_results)
+        if not isinstance(response, TextResponse):
+            yield response
+            return
+        for word in response.text.split(" "):
+            yield StreamTextDelta(word + " ")
+        yield response
+
+
+_provider = RouterProvider()
+_memory = InMemoryMemory(max_turns=8)
+_agent = Agent(
+    _provider,
+    tool_registry=create_tool_registry(),
+    tool_executor=ToolExecutor(),
+    memory=_memory,
+)
+
+
+def reset():
+    _provider.calls = 0
+    _memory.clear()
+    _emit("info", "provider call counter and memory reset")
+
+
+def run_tool_loop(expression="What is 19 + 23?"):
+    _emit("run", f"agent.run({expression!r}) — bounded tool loop")
+    result = _agent.run(expression)
+    _emit("answer", result.output)
+    return result.output
+
+
+def run_memory(first="My name is Sara", second="What is my name?"):
+    _emit("run", f"agent.run({first!r}) — run one: the exchange gets recorded")
+    first_result = _agent.run(first)
+    _emit("answer", first_result.output)
+    _emit("memory", f"memory holds {len(_memory)} turns: "
+         + " | ".join(f"{t.role}: {t.text[:44]}" for t in _memory.history()))
+    _emit("run", f"agent.run({second!r}) — run two: the prompt now carries the transcript")
+    second_result = _agent.run(second)
+    _emit("answer", second_result.output)
+    return second_result.output
+
+
+def run_stream(text="Explain: why is a readable core a good idea?"):
+    _emit("run", f"agent.run({text!r}, on_delta=...) — streaming")
+    chunks = []
+
+    def on_delta(delta):
+        chunks.append(delta)
+        _emit("delta", repr(delta))
+
+    result = _agent.run(text, on_delta=on_delta)
+    _emit("answer", f"assembled from {len(chunks)} deltas: {result.output}")
+    return result.output
+
+
+def run_user_prompt(text):
+    _emit("run", f"agent.run({text!r})")
+    result = _agent.run(text)
+    _emit("answer", result.output)
+    return result.output
+
+
+def composed_prompt(text):
+    from nexusagent.memory import compose_prompt
+    return compose_prompt(text, _memory.history())
+
+
+_emit("info", f"nexusagent {nexusagent.__version__} ready — 37 public names, real agent loop wired")
+</script>
+
+<script>
+  const term = document.getElementById("term");
+  const bootStatus = document.getElementById("boot-status");
+  const bootBtn = document.getElementById("btn-boot");
+  const runBtn = document.getElementById("btn-run");
+  const userInput = document.getElementById("user-input");
+  let pyodide = null;
+
+  function stamp() {
+    return new Date().toLocaleTimeString([], { hour12: false });
+  }
+  function appendTrace(msg, kind = "info") {
+    const line = document.createElement("div");
+    line.className = "line " + kind;
+    line.innerHTML = `<span class="t">${stamp()}</span><span class="kind k-${kind}">[${kind}]</span><span class="msg"></span>`;
+    line.querySelector(".msg").textContent = msg;
+    term.appendChild(line);
+    term.scrollTop = term.scrollHeight;
+  }
+
+  window.logTrace = appendTrace;
+
+  async function bootRuntime() {
+    if (pyodide) return;
+    bootBtn.disabled = true;
+    bootStatus.textContent = "loading…";
+    bootStatus.className = "status loading";
+    appendTrace("booting CPython (WASM) via Pyodide v314.0.8 …", "info");
+    try {
+      pyodide = await loadPyodide();
+      appendTrace("python ready:", "info");
+      appendTrace("  " + (await pyodide.runPythonAsync("import sys; sys.version.split()[0]")), "info");
+      appendTrace("loading micropip …", "info");
+      await pyodide.loadPackage("micropip");
+      const micropip = pyodide.pyimport("micropip");
+      appendTrace("installing nexusagent-runtime==1.4.0 from PyPI (the real wheel) …", "info");
+      await micropip.install("nexusagent-runtime==1.4.0");
+      appendTrace("wiring agent: RouterProvider + tool registry (echo, uppercase, calculator) + InMemoryMemory …", "info");
+      await pyodide.runPythonAsync(document.getElementById("demo-py").textContent);
+      bootStatus.textContent = "ready · nexusagent 1.4.0";
+      bootStatus.className = "status ready";
+      document.querySelectorAll(".scen[disabled]").forEach((b) => (b.disabled = false));
+      userInput.disabled = false;
+      runBtn.disabled = false;
+      userInput.focus();
+      appendTrace("runtime is live — pick a scenario on the left, or type your own prompt.", "answer");
+    } catch (err) {
+      appendTrace("boot failed: " + err, "error");
+      appendTrace("check your connection (Pyodide + wheel come from jsDelivr/PyPI), then reload.", "error");
+      bootStatus.textContent = "boot failed";
+      bootStatus.className = "status";
+      bootBtn.disabled = false;
+      pyodide = null;
+    }
+  }
+
+  async function runScenario(name) {
+    if (!pyodide) return;
+    const label = { tool_loop: "tool loop", memory: "memory", stream: "streaming" }[name];
+    appendTrace(`— scenario: ${label} —`, "info");
+    if (name === "tool_loop") await pyodide.runPythonAsync("reset()\nrun_tool_loop()");
+    else if (name === "memory") await pyodide.runPythonAsync("reset()\nrun_memory()");
+    else await pyodide.runPythonAsync("run_stream()");
+  }
+
+  async function runUserPrompt() {
+    if (!pyodide) return;
+    const text = userInput.value.trim();
+    if (!text) return;
+    userInput.value = "";
+    pyodide.globals.set("user_input", text);
+    await pyodide.runPythonAsync("run_user_prompt(user_input)");
+  }
+
+  function copyCode(btn) {
+    const pre = btn.closest(".code-card").querySelector("pre");
+    navigator.clipboard.writeText(pre.innerText).then(() => {
+      btn.textContent = "copied!";
+      setTimeout(() => (btn.textContent = "copy"), 1200);
+    });
+  }
+</script>
+</body>
+</html>
