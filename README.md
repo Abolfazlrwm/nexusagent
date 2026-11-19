@@ -4,11 +4,16 @@
 [![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/Abolfazlrwm/nexusagent/gh-pages/coverage-badge.json)](https://github.com/Abolfazlrwm/nexusagent/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/nexusagent-runtime)](https://pypi.org/project/nexusagent-runtime/)
 [![Python](https://img.shields.io/pypi/pyversions/nexusagent-runtime)](https://pypi.org/project/nexusagent-runtime/)
+[![Live demo](https://img.shields.io/badge/%E2%96%B6_live_demo-run_in_your_browser-brightgreen)](https://abolfazlrwm.github.io/nexusagent/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 **A modular runtime for AI agents in Python — zero runtime dependencies, a small readable core, and an honest feature list.**
 
 Most agent frameworks hand you a galaxy of abstractions. NexusAgent is the opposite: ~800 statements of typed, contract-tested core that you can read in one sitting — providers, tools, a bounded autonomous tool loop, an async mirror of the whole stack, and a CLI. Nothing hidden, nothing magic.
+
+> **▶ Try it live, right now:** open the [in-browser demo](https://abolfazlrwm.github.io/nexusagent/) —
+> it loads the real wheel from PyPI (via Pyodide) and runs the actual agent loop, tool loop and
+> conversation memory on the page. No install, no API keys, nothing to configure.
 
 ```python
 from nexusagent import create_application_runtime

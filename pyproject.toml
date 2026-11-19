@@ -30,6 +30,7 @@ nexusagent = "nexusagent.main:main"
 
 [project.urls]
 Homepage = "https://github.com/Abolfazlrwm/nexusagent"
+Documentation = "https://abolfazlrwm.github.io/nexusagent/"
 Repository = "https://github.com/Abolfazlrwm/nexusagent"
 Changelog = "https://github.com/Abolfazlrwm/nexusagent/blob/main/CHANGELOG.md"
 Issues = "https://github.com/Abolfazlrwm/nexusagent/issues"
