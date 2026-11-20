@@ -9,7 +9,7 @@
 
 **A modular runtime for AI agents in Python — zero runtime dependencies, a small readable core, and an honest feature list.**
 
-Most agent frameworks hand you a galaxy of abstractions. NexusAgent is the opposite: ~800 statements of typed, contract-tested core that you can read in one sitting — providers, tools, a bounded autonomous tool loop, an async mirror of the whole stack, and a CLI. Nothing hidden, nothing magic.
+Most agent frameworks hand you a galaxy of abstractions. NexusAgent is the opposite: ~1,500 statements of typed, contract-tested core that you can read in one sitting — providers, tools, a bounded autonomous tool loop, an async mirror of the whole stack, and a CLI. Nothing hidden, nothing magic.
 
 > **▶ Try it live, right now:** open the [in-browser demo](https://abolfazlrwm.github.io/nexusagent/) —
 > it loads the real wheel from PyPI (via Pyodide) and runs the actual agent loop, tool loop and
@@ -373,7 +373,7 @@ All examples run offline, with no API keys:
 - [Concepts](docs/concepts.md) — Agent, Provider, Tool, Runtime, Settings
 - [Guides](docs/) — write a custom [provider](docs/guides/custom-provider.md), [tool](docs/guides/custom-tool.md) or [async runtime](docs/guides/async.md)
 - [HTTP protocol](docs/protocol.md) — wire format for backends
-- [ADRs](docs/adr/) — architecture decision records (0001–0011)
+- [ADRs](docs/adr/) — architecture decision records (0001–0013)
 - [Security policy](SECURITY.md) · [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md)
 
 ## Project status

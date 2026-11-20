@@ -4,22 +4,25 @@ This file exists so that whoever picks this project back up — even months
 later — can understand exactly what works, what doesn't exist yet, and
 where to resume without re-reading the entire history.
 
-## Current state: WORKING and STABLE — 1.3
+## Current state: WORKING and STABLE — 1.4
 
 - **1.0.0 declared API stability** (ADR 0010): the full public surface is
   `nexusagent.__all__` at the package root, governed by SemVer and pinned
   by `tests/test_public_api.py`; vendor wire adapters, built-in demo tools
   and internal factories stay internal by design. Since 1.0 the surface
   only grew additively: 33 names at 1.0.0, 36 at 1.2.0 (conversation
-  memory, ADR 0012), 37 at 1.3.0 (persistent SQLite memory, ADR 0013).
+  memory, ADR 0012), 37 at 1.3.0 (persistent SQLite memory, ADR 0013),
+  still 37 at 1.4.0 (CLI `--version` flag and the in-browser live demo —
+  no surface change).
 - **1.1.0 added automatic HTTP retries** (ADR 0011); **1.2.0 added
-  in-process conversation memory** (ADR 0012); **1.3.0 adds the
-  persistent SQLite memory backend** (ADR 0013) — all additive, all
-  offline-tested.
-- 1226 tests, all passing.
+  in-process conversation memory** (ADR 0012); **1.3.0 added the
+  persistent SQLite memory backend** (ADR 0013); **1.4.0 added a
+  `--version` CLI flag and the live in-browser demo** — all additive,
+  all offline-tested.
+- 1230 tests, all passing.
 - `ruff check .` and `ruff format --check .` — clean.
 - `mypy --strict` — clean.
-- `pytest` enforces a coverage floor of 95% (currently ~99.81%).
+- `pytest` enforces a coverage floor of 95% (currently ~99.74%).
 - `python scripts/check.py` — passes.
 - No known bugs, no known regressions, no unfinished/half-done code.
 
