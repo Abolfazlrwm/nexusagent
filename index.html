@@ -100,6 +100,7 @@
   .k-run { color: var(--pink); } .k-provider { color: var(--blue); } .k-model { color: var(--violet); }
   .k-tool { color: var(--amber); } .k-delta { color: var(--slate); } .k-answer { color: var(--green); }
   .k-memory { color: var(--accent2); } .k-info { color: var(--faint); } .k-error { color: var(--red); }
+  .k-wire { color: var(--accent); font-weight: 600; }
   .term .msg { color: #cdd6e0; }
   .term .line.answer .msg { color: var(--green); }
   .cursor { display: inline-block; width: 8px; height: 15px; background: var(--accent2); vertical-align: -2px;
@@ -175,7 +176,7 @@
     <div class="kicker">Live demo · Pyodide + the actual PyPI wheel</div>
     <h2>Watch the agent loop think — in your browser</h2>
     <p class="sub">No install, no API keys. Click <b>Boot runtime</b> and this page loads CPython (WASM)
-      plus <code style="font-family:var(--mono)">nexusagent-runtime==1.4.0</code> straight from PyPI.
+      plus <code style="font-family:var(--mono)">nexusagent-runtime==1.5.0</code> straight from PyPI.
       The “model” is a small scripted router so everything stays offline and deterministic — the
       <b>agent loop, tool execution, memory and streaming are the real package code</b>, traced line by line.</p>
 
@@ -198,6 +199,10 @@
           <button class="scen" onclick="runScenario('memory')" disabled>
             <b><span class="ico">🧠</span> Memory across runs</b>
             <span>Run one records the exchange; run two’s composed prompt carries the transcript — the model remembers.</span>
+          </button>
+          <button class="scen" onclick="runScenario('history')" disabled>
+            <b><span class="ico">🔗</span> Native history (new in 1.5)</b>
+            <span>The same remembered conversation, rehydrated by the real adapters into OpenAI / Anthropic / Gemini native message arrays.</span>
           </button>
           <button class="scen" onclick="runScenario('stream')" disabled>
             <b><span class="ico">🌊</span> Streaming</b>
@@ -295,6 +300,7 @@ runtime = <span class="fn">create_runtime</span>(memory=memory)
       <a class="adr" href="https://github.com/Abolfazlrwm/nexusagent/blob/main/docs/adr/0011-http-retry-backoff.md">0011 · retries</a>
       <a class="adr" href="https://github.com/Abolfazlrwm/nexusagent/blob/main/docs/adr/0012-conversation-memory.md">0012 · memory</a>
       <a class="adr" href="https://github.com/Abolfazlrwm/nexusagent/blob/main/docs/adr/0013-sqlite-memory.md">0013 · SQLite memory</a>
+      <a class="adr" href="https://github.com/Abolfazlrwm/nexusagent/blob/main/docs/adr/0014-native-history-threading.md">0014 · native history</a>
     </div>
   </div>
 </section>
@@ -441,6 +447,40 @@ def run_user_prompt(text):
     return result.output
 
 
+def show_history_wire():
+    """ADR 0014: the same remembered turns, rehydrated by the real adapters."""
+    import json as _json
+
+    from nexusagent.anthropic_provider import AnthropicProvider
+    from nexusagent.gemini_provider import GeminiProvider
+    from nexusagent.openai_provider import OpenAIProvider
+
+    turns = (("user", "My name is Sara"), ("assistant", "Nice to meet you, Sara!"))
+    prompt = "What is my name?"
+
+    _emit("run", "native history threading (ADR 0014) — supports_native_history flag per adapter")
+    _emit("info", f"OpenAIProvider.supports_native_history = {OpenAIProvider().supports_native_history}, "
+                   f"Anthropic = {AnthropicProvider().supports_native_history}, "
+                   f"Gemini = {GeminiProvider().supports_native_history}")
+
+    from nexusagent.openai_provider import _messages_for
+    from nexusagent.anthropic_provider import _messages_for as _anthropic_messages
+    from nexusagent.gemini_provider import _contents_for
+
+    for vendor, payload in (
+        ("OpenAI  messages", _messages_for(prompt, (), history=turns)),
+        ("Anthropic messages", _anthropic_messages(prompt, (), history=turns)),
+        ("Gemini   contents", _contents_for(prompt, (), history=turns)),
+    ):
+        _emit("wire", f"{vendor}: {_json.dumps(payload, separators=(',', ':'))}")
+
+    _emit("info", "before 1.5 every provider got one flattened transcript string; "
+                  "now the roles ride the wire natively (Gemini: assistant -> model)")
+    _emit("info", "providers without the flag keep the composed prompt byte-for-byte — "
+                  "the vendor-neutral http protocol is frozen on purpose")
+    return "ok"
+
+
 def composed_prompt(text):
     from nexusagent.memory import compose_prompt
     return compose_prompt(text, _memory.history())
@@ -484,11 +524,11 @@ _emit("info", f"nexusagent {nexusagent.__version__} ready — 37 public names, r
       appendTrace("loading micropip …", "info");
       await pyodide.loadPackage("micropip");
       const micropip = pyodide.pyimport("micropip");
-      appendTrace("installing nexusagent-runtime==1.4.0 from PyPI (the real wheel) …", "info");
-      await micropip.install("nexusagent-runtime==1.4.0");
+      appendTrace("installing nexusagent-runtime==1.5.0 from PyPI (the real wheel) …", "info");
+      await micropip.install("nexusagent-runtime==1.5.0");
       appendTrace("wiring agent: RouterProvider + tool registry (echo, uppercase, calculator) + InMemoryMemory …", "info");
       await pyodide.runPythonAsync(document.getElementById("demo-py").textContent);
-      bootStatus.textContent = "ready · nexusagent 1.4.0";
+      bootStatus.textContent = "ready · nexusagent 1.5.0";
       bootStatus.className = "status ready";
       document.querySelectorAll(".scen[disabled]").forEach((b) => (b.disabled = false));
       userInput.disabled = false;
@@ -507,10 +547,11 @@ _emit("info", f"nexusagent {nexusagent.__version__} ready — 37 public names, r
 
   async function runScenario(name) {
     if (!pyodide) return;
-    const label = { tool_loop: "tool loop", memory: "memory", stream: "streaming" }[name];
+    const label = { tool_loop: "tool loop", memory: "memory", stream: "streaming", history: "native history (ADR 0014)" }[name];
     appendTrace(`— scenario: ${label} —`, "info");
     if (name === "tool_loop") await pyodide.runPythonAsync("reset()\nrun_tool_loop()");
     else if (name === "memory") await pyodide.runPythonAsync("reset()\nrun_memory()");
+    else if (name === "history") await pyodide.runPythonAsync("show_history_wire()");
     else await pyodide.runPythonAsync("run_stream()");
   }
 
