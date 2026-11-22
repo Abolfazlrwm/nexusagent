@@ -47,7 +47,15 @@ class ScriptedProvider(Provider):
         *,
         tools: Sequence[ToolSpec] = (),
         tool_results: Sequence[ToolResult] = (),
+        history: Sequence[tuple[str, str]] = (),
     ) -> ProviderResponse:
+        """Answer from the scripted queue.
+
+        ``history`` is part of the 1.5 Provider contract (ADR 0014) and is
+        accepted for signature compatibility; this provider has not opted
+        into native history threading, so the Agent never sends it and the
+        composed prompt already carries the remembered turns.
+        """
         self.calls.append((prompt, tuple(tools), tuple(tool_results)))
 
         if self._position >= len(self._responses):

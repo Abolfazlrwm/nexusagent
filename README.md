@@ -59,6 +59,7 @@ print(runtime.execute_tool("calculator", "2 + 3"))  # 5
 | Retries / backoff on HTTP failures (429/5xx, jitter, `Retry-After`) | ✅ [ADR 0011](docs/adr/0011-http-retry-backoff.md) |
 | Conversation memory (opt-in, in-process, provider-agnostic) | ✅ [ADR 0012](docs/adr/0012-conversation-memory.md) |
 | Persistent conversation memory (local SQLite file, same contract) | ✅ [ADR 0013](docs/adr/0013-sqlite-memory.md) |
+| Native per-vendor history threading (real `messages`/`contents` roles) | ✅ [ADR 0014](docs/adr/0014-native-history-threading.md) |
 | Planning, multi-agent orchestration | ❌ |
 
 ## Architecture
@@ -309,6 +310,38 @@ context manager) releases the database connection, and runtimes that open
 the same file one after another see the same turns. Design details:
 [ADR 0013](docs/adr/0013-sqlite-memory.md).
 
+#### Native history threading
+
+By default (and for every custom provider) the remembered transcript is
+composed into the prompt text. The three vendor-native adapters opt into
+something better (ADR 0014): with memory configured they rehydrate the
+remembered turns into their wire format's real multi-message
+conversation — OpenAI and Anthropic send proper `user`/`assistant`
+`messages` entries, Gemini sends `contents` with `model` role — so the
+model sees the conversation exactly the way its API is designed to
+receive it, not a flattened transcript. Providers that have not opted in
+keep the composed prompt byte-for-byte.
+
+```python
+from nexusagent import Agent, InMemoryMemory
+from nexusagent.openai_provider import OpenAIProvider
+from nexusagent.provider import ProviderConfig
+
+provider = OpenAIProvider(ProviderConfig(model="gpt-4o-mini", api_key="sk-..."))
+agent = Agent(provider, memory=InMemoryMemory())
+
+agent.run("My name is Sara")
+agent.run("What is my name?")
+# the second request's body carries:
+# messages: [{user: "My name is Sara"},
+#            {assistant: "..."},
+#            {user: "What is my name?"}]
+```
+
+Watch it offline: [`examples/native_history.py`](examples/native_history.py)
+points the real adapter at a local echo backend and prints the exact
+request body. Design details: [ADR 0014](docs/adr/0014-native-history-threading.md).
+
 ### Async runtime
 
 The async layer mirrors the sync contracts one-to-one — `await runtime.run(...)`,
@@ -364,6 +397,7 @@ All examples run offline, with no API keys:
 - [`examples/streaming.py`](examples/streaming.py) — streamed text through `on_delta`, offline
 - [`examples/memory.py`](examples/memory.py) — conversation memory across runs, offline
 - [`examples/sqlite_memory.py`](examples/sqlite_memory.py) — persistent SQLite memory across restarts, offline
+- [`examples/native_history.py`](examples/native_history.py) — per-vendor native history threading, offline (local echo server)
 - [`examples/async_tool_loop.py`](examples/async_tool_loop.py) — the async tool loop with an awaited tool
 - [`examples/http_provider_local.py`](examples/http_provider_local.py) — `http` provider against a local backend
 
@@ -373,7 +407,7 @@ All examples run offline, with no API keys:
 - [Concepts](docs/concepts.md) — Agent, Provider, Tool, Runtime, Settings
 - [Guides](docs/) — write a custom [provider](docs/guides/custom-provider.md), [tool](docs/guides/custom-tool.md) or [async runtime](docs/guides/async.md)
 - [HTTP protocol](docs/protocol.md) — wire format for backends
-- [ADRs](docs/adr/) — architecture decision records (0001–0013)
+- [ADRs](docs/adr/) — architecture decision records (0001–0014)
 - [Security policy](SECURITY.md) · [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md)
 
 ## Project status

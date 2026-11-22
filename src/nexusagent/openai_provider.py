@@ -78,9 +78,28 @@ def _tools_to_wire(tools: Sequence[ToolSpec]) -> list[dict[str, Any]]:
     ]
 
 
-def _messages_for(prompt: str, tool_results: Sequence[ToolResult]) -> list[dict[str, Any]]:
-    """Rehydrate the stateless (prompt + tool results) loop into OpenAI messages."""
-    messages: list[dict[str, Any]] = [{"role": "user", "content": prompt}]
+def _history_messages(history: Sequence[tuple[str, str]]) -> list[dict[str, Any]]:
+    """Rehydrate remembered (role, text) pairs into Chat Completions messages.
+
+    Roles pass through unchanged: memory roles (``user`` / ``assistant``)
+    are exactly the Chat Completions roles (ADR 0014).
+    """
+    return [{"role": role, "content": text} for role, text in history]
+
+
+def _messages_for(
+    prompt: str,
+    tool_results: Sequence[ToolResult],
+    history: Sequence[tuple[str, str]] = (),
+) -> list[dict[str, Any]]:
+    """Rehydrate the stateless (prompt + tool results) loop into OpenAI messages.
+
+    Remembered conversation turns (ADR 0014) come first as their own
+    messages, then the current user prompt, then the tool-call exchange of
+    this run's loop so far.
+    """
+    messages: list[dict[str, Any]] = _history_messages(history)
+    messages.append({"role": "user", "content": prompt})
 
     for index, result in enumerate(tool_results):
         call_id = f"call_{index}"
@@ -300,7 +319,13 @@ class OpenAIProvider(Provider):
       When set, it is sent as ``Authorization: Bearer <api_key>`` and never
       appears in error messages or reprs.
     - ``timeout`` must be positive (default 30 seconds).
+
+    The adapter opts into native history threading (ADR 0014): with memory
+    configured, remembered turns are rehydrated into real ``messages``
+    entries instead of a flattened prompt.
     """
+
+    supports_native_history = True
 
     def __init__(self, config: ProviderConfig | None = None) -> None:
         self.config = config or ProviderConfig()
@@ -321,12 +346,13 @@ class OpenAIProvider(Provider):
         *,
         tools: Sequence[ToolSpec] = (),
         tool_results: Sequence[ToolResult] = (),
+        history: Sequence[tuple[str, str]] = (),
     ) -> ProviderResponse:
         self._validate_config()
 
         body: dict[str, object] = {
             "model": self.config.model,
-            "messages": _messages_for(prompt, tool_results),
+            "messages": _messages_for(prompt, tool_results, history),
         }
 
         if tools:
@@ -348,27 +374,30 @@ class OpenAIProvider(Provider):
         *,
         tools: Sequence[ToolSpec] = (),
         tool_results: Sequence[ToolResult] = (),
+        history: Sequence[tuple[str, str]] = (),
     ) -> Iterator[ProviderStreamEvent]:
         """Stream the response for ``prompt`` over the SSE wire format.
 
         Requests ``stream: true`` and yields ``StreamTextDelta`` events as
         text fragments arrive, then one final ``ProviderResponse`` carrying
-        the complete accumulated answer. Configuration errors raise when
-        the method is called; network and protocol errors surface while the
-        returned iterator is consumed.
+        the complete accumulated answer. ``history`` mirrors the sync
+        contract (ADR 0014). Configuration errors raise when the method is
+        called; network and protocol errors surface while the returned
+        iterator is consumed.
         """
         self._validate_config()
-        return self._stream_events(prompt, tools, tool_results)
+        return self._stream_events(prompt, tools, tool_results, history)
 
     def _stream_events(
         self,
         prompt: str,
         tools: Sequence[ToolSpec],
         tool_results: Sequence[ToolResult],
+        history: Sequence[tuple[str, str]] = (),
     ) -> Iterator[ProviderStreamEvent]:
         body: dict[str, object] = {
             "model": self.config.model,
-            "messages": _messages_for(prompt, tool_results),
+            "messages": _messages_for(prompt, tool_results, history),
             "stream": True,
         }
 

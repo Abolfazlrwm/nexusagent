@@ -91,9 +91,39 @@ def _tools_to_wire(tools: Sequence[ToolSpec]) -> list[dict[str, Any]]:
     ]
 
 
-def _contents_for(prompt: str, tool_results: Sequence[ToolResult]) -> list[dict[str, Any]]:
-    """Rehydrate the stateless (prompt + tool results) loop into contents turns."""
-    contents: list[dict[str, Any]] = [{"role": "user", "parts": [{"text": prompt}]}]
+_MODEL_ROLE = "model"
+_ASSISTANT_ROLE = "assistant"
+
+
+def _history_contents(history: Sequence[tuple[str, str]]) -> list[dict[str, Any]]:
+    """Rehydrate remembered (role, text) pairs into contents turns (ADR 0014).
+
+    Memory roles map onto Gemini's roles directly: ``user`` stays ``user``
+    and ``assistant`` becomes ``model``. Merged backends may produce
+    consecutive same-role turns; Gemini tolerates them, so pairs are
+    passed through one content per turn.
+    """
+    return [
+        {
+            "role": _MODEL_ROLE if role == _ASSISTANT_ROLE else role,
+            "parts": [{"text": text}],
+        }
+        for role, text in history
+    ]
+
+
+def _contents_for(
+    prompt: str,
+    tool_results: Sequence[ToolResult],
+    history: Sequence[tuple[str, str]] = (),
+) -> list[dict[str, Any]]:
+    """Rehydrate the stateless (prompt + tool results) loop into contents turns.
+
+    Remembered conversation turns (ADR 0014) come first, then the current
+    user prompt, then the tool-call exchange of this run's loop so far.
+    """
+    contents: list[dict[str, Any]] = _history_contents(history)
+    contents.append({"role": "user", "parts": [{"text": prompt}]})
 
     for result in tool_results:
         contents.append(
@@ -251,7 +281,14 @@ class GeminiProvider(Provider):
     ``maxOutputTokens``. Unlike the Anthropic wire format it is optional on
     this wire: by default the adapter sends no ``generationConfig`` at all,
     and an explicit ``max_tokens`` must be a positive integer.
+
+    The adapter opts into native history threading (ADR 0014): with memory
+    configured, remembered turns are rehydrated into real ``contents``
+    turns (assistant turns become ``model`` role) instead of a flattened
+    prompt.
     """
+
+    supports_native_history = True
 
     def __init__(
         self, config: ProviderConfig | None = None, *, max_tokens: int | None = None
@@ -275,10 +312,11 @@ class GeminiProvider(Provider):
         *,
         tools: Sequence[ToolSpec] = (),
         tool_results: Sequence[ToolResult] = (),
+        history: Sequence[tuple[str, str]] = (),
     ) -> ProviderResponse:
         self._validate_config()
 
-        body: dict[str, object] = {"contents": _contents_for(prompt, tool_results)}
+        body: dict[str, object] = {"contents": _contents_for(prompt, tool_results, history)}
 
         if tools:
             body["tools"] = _tools_to_wire(tools)
@@ -304,26 +342,29 @@ class GeminiProvider(Provider):
         *,
         tools: Sequence[ToolSpec] = (),
         tool_results: Sequence[ToolResult] = (),
+        history: Sequence[tuple[str, str]] = (),
     ) -> Iterator[ProviderStreamEvent]:
         """Stream the response for ``prompt`` over the SSE wire format.
 
         Requests ``:streamGenerateContent?alt=sse`` and yields
         ``StreamTextDelta`` events as text parts arrive, then one final
         ``ProviderResponse``: the first ``functionCall`` if one was
-        streamed, otherwise the joined text. Configuration errors raise
-        when the method is called; network and protocol errors surface
-        while the returned iterator is consumed.
+        streamed, otherwise the joined text. ``history`` mirrors the sync
+        contract (ADR 0014). Configuration errors raise when the method is
+        called; network and protocol errors surface while the returned
+        iterator is consumed.
         """
         self._validate_config()
-        return self._stream_events(prompt, tools, tool_results)
+        return self._stream_events(prompt, tools, tool_results, history)
 
     def _stream_events(
         self,
         prompt: str,
         tools: Sequence[ToolSpec],
         tool_results: Sequence[ToolResult],
+        history: Sequence[tuple[str, str]] = (),
     ) -> Iterator[ProviderStreamEvent]:
-        body: dict[str, object] = {"contents": _contents_for(prompt, tool_results)}
+        body: dict[str, object] = {"contents": _contents_for(prompt, tool_results, history)}
 
         if tools:
             body["tools"] = _tools_to_wire(tools)

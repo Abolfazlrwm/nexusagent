@@ -88,8 +88,11 @@ class AsyncAgent:
         ``generate_response()`` path is used, unchanged.
 
         With memory configured (ADR 0012), semantics mirror the sync
-        ``Agent.run()`` exactly: remembered turns are composed into the
-        prompt of this run and a successful run records
+        ``Agent.run()`` exactly: remembered turns reach the provider either
+        composed into the prompt text (byte-for-byte the pre-1.5 behavior)
+        or as the structured ``history`` keyword for providers whose
+        ``supports_native_history`` flag is set (ADR 0014), in which case
+        ``prompt`` carries the raw user input. A successful run records
         ``(user, input_text)`` and ``(assistant, output)``; failed runs
         record nothing.
         """
@@ -102,16 +105,22 @@ class AsyncAgent:
         can_use_tools = self.tool_registry is not None and self.tool_executor is not None
         tools = self._tool_specs() if can_use_tools else ()
         tool_results: list[ToolResult] = []
-        history = self.memory.history() if self.memory is not None else ()
-        prompt = compose_prompt(input_text, history)
+        turns = self.memory.history() if self.memory is not None else ()
+        if turns and getattr(self.provider, "supports_native_history", False):
+            # Native history threading (ADR 0014): mirrors the sync Agent.
+            history: tuple[tuple[str, str], ...] = tuple((t.role, t.text) for t in turns)
+            prompt = input_text
+        else:
+            history = ()
+            prompt = compose_prompt(input_text, turns)
 
         for iteration in range(1, self.max_iterations + 1):
             try:
                 if on_delta is None:
-                    response = await self._ask_provider(prompt, tools, tuple(tool_results))
+                    response = await self._ask_provider(prompt, tools, tuple(tool_results), history)
                 else:
                     response = await self._stream_provider_response(
-                        prompt, tools, tuple(tool_results), on_delta
+                        prompt, tools, tuple(tool_results), on_delta, history
                     )
             except Exception as exc:  # noqa: BLE001
                 return AgentResult(output=f"provider error: {exc}", success=False)
@@ -167,11 +176,24 @@ class AsyncAgent:
         input_text: str,
         tools: tuple[ToolSpec, ...],
         tool_results: tuple[ToolResult, ...],
+        history: tuple[tuple[str, str], ...] = (),
     ) -> ProviderResponse:
-        response: ProviderResponse = await self.provider.generate_response(
+        """Ask the async provider for its next response (ADR 0014 keyword rule).
+
+        The ``history`` keyword is forwarded only to providers that opted
+        into native history threading via ``supports_native_history``;
+        every other provider keeps receiving exactly the pre-1.5 keyword
+        set.
+        """
+        if getattr(self.provider, "supports_native_history", False):
+            response: ProviderResponse = await self.provider.generate_response(
+                input_text, tools=tools, tool_results=tool_results, history=history
+            )
+            return response
+
+        return await self.provider.generate_response(
             input_text, tools=tools, tool_results=tool_results
         )
-        return response
 
     async def _stream_provider_response(
         self,
@@ -179,16 +201,26 @@ class AsyncAgent:
         tools: tuple[ToolSpec, ...],
         tool_results: tuple[ToolResult, ...],
         on_delta: Callable[[str], None],
+        history: tuple[tuple[str, str], ...] = (),
     ) -> ProviderResponse:
         """Collect one streamed provider response, forwarding text deltas.
 
         Mirrors the sync ``Agent._stream_provider_response()`` over the
-        async ``stream_response()`` contract (ADR 0006/0009). A stream that
-        ends without a final response is an error.
+        async ``stream_response()`` contract (ADR 0006/0009); ``history``
+        (ADR 0014) is forwarded only to providers that opted into native
+        history threading. A stream that ends without a final response is
+        an error.
         """
-        async for event in self.provider.stream_response(
-            input_text, tools=tools, tool_results=tool_results
-        ):
+        if getattr(self.provider, "supports_native_history", False):
+            event_stream = self.provider.stream_response(
+                input_text, tools=tools, tool_results=tool_results, history=history
+            )
+        else:
+            event_stream = self.provider.stream_response(
+                input_text, tools=tools, tool_results=tool_results
+            )
+
+        async for event in event_stream:
             if isinstance(event, StreamTextDelta):
                 on_delta(event.text)
             else:
