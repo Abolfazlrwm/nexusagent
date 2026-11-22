@@ -101,6 +101,7 @@
   .k-tool { color: var(--amber); } .k-delta { color: var(--slate); } .k-answer { color: var(--green); }
   .k-memory { color: var(--accent2); } .k-info { color: var(--faint); } .k-error { color: var(--red); }
   .k-wire { color: var(--accent); font-weight: 600; }
+  .k-route { color: var(--cyan, #22d3ee); font-weight: 600; }
   .term .msg { color: #cdd6e0; }
   .term .line.answer .msg { color: var(--green); }
   .cursor { display: inline-block; width: 8px; height: 15px; background: var(--accent2); vertical-align: -2px;
@@ -157,7 +158,7 @@
       <img alt="Python" src="https://img.shields.io/pypi/pyversions/nexusagent-runtime?style=flat&colorA=121924&colorB=1f2a38">
       <img alt="CI" src="https://github.com/Abolfazlrwm/nexusagent/actions/workflows/ci.yml/badge.svg">
       <img alt="License" src="https://img.shields.io/badge/license-MIT-blue?style=flat&colorA=121924&colorB=1f2a38">
-      <img alt="Tests" src="https://img.shields.io/badge/tests-1230_passing-34d399?style=flat&colorA=121924&colorB=1f2a38">
+      <img alt="Tests" src="https://img.shields.io/badge/tests-1306_passing-34d399?style=flat&colorA=121924&colorB=1f2a38">
     </div>
     <h1>The <span class="grad">readable</span> AI agent runtime.</h1>
     <p class="tagline">Zero runtime dependencies, a core you can read in one sitting, a bounded
@@ -176,7 +177,7 @@
     <div class="kicker">Live demo · Pyodide + the actual PyPI wheel</div>
     <h2>Watch the agent loop think — in your browser</h2>
     <p class="sub">No install, no API keys. Click <b>Boot runtime</b> and this page loads CPython (WASM)
-      plus <code style="font-family:var(--mono)">nexusagent-runtime==1.5.0</code> straight from PyPI.
+      plus <code style="font-family:var(--mono)">nexusagent-runtime==1.6.0</code> straight from PyPI.
       The “model” is a small scripted router so everything stays offline and deterministic — the
       <b>agent loop, tool execution, memory and streaming are the real package code</b>, traced line by line.</p>
 
@@ -203,6 +204,10 @@
           <button class="scen" onclick="runScenario('history')" disabled>
             <b><span class="ico">🔗</span> Native history (new in 1.5)</b>
             <span>The same remembered conversation, rehydrated by the real adapters into OpenAI / Anthropic / Gemini native message arrays.</span>
+          </button>
+          <button class="scen" onclick="runScenario('orchestration')" disabled>
+            <b><span class="ico">🤝</span> Agent team (new in 1.6)</b>
+            <span>A router picks one specialist per prompt — the math member runs its tool loop, the greeter member remembers, the trace shows who answered.</span>
           </button>
           <button class="scen" onclick="runScenario('stream')" disabled>
             <b><span class="ico">🌊</span> Streaming</b>
@@ -301,6 +306,7 @@ runtime = <span class="fn">create_runtime</span>(memory=memory)
       <a class="adr" href="https://github.com/Abolfazlrwm/nexusagent/blob/main/docs/adr/0012-conversation-memory.md">0012 · memory</a>
       <a class="adr" href="https://github.com/Abolfazlrwm/nexusagent/blob/main/docs/adr/0013-sqlite-memory.md">0013 · SQLite memory</a>
       <a class="adr" href="https://github.com/Abolfazlrwm/nexusagent/blob/main/docs/adr/0014-native-history-threading.md">0014 · native history</a>
+      <a class="adr" href="https://github.com/Abolfazlrwm/nexusagent/blob/main/docs/adr/0015-multi-agent-orchestration.md">0015 · agent team</a>
     </div>
   </div>
 </section>
@@ -326,9 +332,9 @@ except ImportError:
 
 import nexusagent
 
-from nexusagent import (Agent, InMemoryMemory, Provider, StreamTextDelta,
+from nexusagent import (Agent, AgentTeam, InMemoryMemory, Provider, StreamTextDelta,
                         TextResponse, ToolCallRequest, ToolExecutor,
-                        ToolResult, ToolSpec)
+                        ToolResult, ToolSpec, create_provider_router)
 from nexusagent.tool_factory import create_tool_registry
 
 _MATH = re.compile(r"(-?\d+(?:\.\d+)?)\s*([+\-*/])\s*(-?\d+(?:\.\d+)?)")
@@ -481,12 +487,48 @@ def show_history_wire():
     return "ok"
 
 
+def run_orchestration(first="what is 144 / 12?", second="my name is Sara"):
+    """ADR 0015: a router picks one specialist per prompt; members run unchanged."""
+    _emit("run", "agent team (ADR 0015) — one prompt, one named specialist, its own result back")
+
+    class TeamRouter(Provider):
+        """Scripted router body: one generate() call decides the member name."""
+
+        def generate(self, prompt):
+            match = re.search(r"User prompt:\n(.+)", prompt)
+            text = match.group(1) if match else prompt
+            pick = "math" if _MATH.search(text) else "greeter"
+            _emit("model", f"router decides {pick!r} — one generate() call, {len(prompt)} chars")
+            return pick
+
+    router = create_provider_router(TeamRouter(), ["greeter", "math"])
+    _emit("info", "create_provider_router: lists the agent names, one provider call, "
+                  "deterministic parse (exact -> case-insensitive -> earliest mention)")
+
+    math_agent = Agent(_provider, tool_registry=create_tool_registry(), tool_executor=ToolExecutor())
+    greeter_agent = Agent(_provider, memory=InMemoryMemory(max_turns=8))
+    team = AgentTeam({"math": math_agent, "greeter": greeter_agent}, router)
+    _emit("info", f"team members: {sorted(team.agents)} — each keeps its own tools and memory")
+
+    for prompt in (first, second):
+        result = team.run(prompt)
+        _emit("route", f"router chose {result.agent_name!r} for {prompt!r}")
+        _emit("answer", result.output)
+
+    broken = AgentTeam({"math": math_agent}, lambda prompt: "nobody")
+    failed = broken.run("anything at all")
+    _emit("error", f"unknown-name routing -> success={failed.success}, "
+                   f"agent_name={failed.agent_name!r}, output={failed.output!r}")
+    _emit("info", "routing failures are failed results, never crashes — mirrors provider errors")
+    return "ok"
+
+
 def composed_prompt(text):
     from nexusagent.memory import compose_prompt
     return compose_prompt(text, _memory.history())
 
 
-_emit("info", f"nexusagent {nexusagent.__version__} ready — 37 public names, real agent loop wired")
+_emit("info", f"nexusagent {nexusagent.__version__} ready — 40 public names, real agent loop wired")
 </script>
 
 <script>
@@ -524,11 +566,11 @@ _emit("info", f"nexusagent {nexusagent.__version__} ready — 37 public names, r
       appendTrace("loading micropip …", "info");
       await pyodide.loadPackage("micropip");
       const micropip = pyodide.pyimport("micropip");
-      appendTrace("installing nexusagent-runtime==1.5.0 from PyPI (the real wheel) …", "info");
-      await micropip.install("nexusagent-runtime==1.5.0");
+      appendTrace("installing nexusagent-runtime==1.6.0 from PyPI (the real wheel) …", "info");
+      await micropip.install("nexusagent-runtime==1.6.0");
       appendTrace("wiring agent: RouterProvider + tool registry (echo, uppercase, calculator) + InMemoryMemory …", "info");
       await pyodide.runPythonAsync(document.getElementById("demo-py").textContent);
-      bootStatus.textContent = "ready · nexusagent 1.5.0";
+      bootStatus.textContent = "ready · nexusagent 1.6.0";
       bootStatus.className = "status ready";
       document.querySelectorAll(".scen[disabled]").forEach((b) => (b.disabled = false));
       userInput.disabled = false;
@@ -547,11 +589,12 @@ _emit("info", f"nexusagent {nexusagent.__version__} ready — 37 public names, r
 
   async function runScenario(name) {
     if (!pyodide) return;
-    const label = { tool_loop: "tool loop", memory: "memory", stream: "streaming", history: "native history (ADR 0014)" }[name];
+    const label = { tool_loop: "tool loop", memory: "memory", stream: "streaming", history: "native history (ADR 0014)", orchestration: "agent team (ADR 0015)" }[name];
     appendTrace(`— scenario: ${label} —`, "info");
     if (name === "tool_loop") await pyodide.runPythonAsync("reset()\nrun_tool_loop()");
     else if (name === "memory") await pyodide.runPythonAsync("reset()\nrun_memory()");
     else if (name === "history") await pyodide.runPythonAsync("show_history_wire()");
+    else if (name === "orchestration") await pyodide.runPythonAsync("reset()\nrun_orchestration()");
     else await pyodide.runPythonAsync("run_stream()");
   }
 
