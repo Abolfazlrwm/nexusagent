@@ -274,7 +274,16 @@ class HttpProvider(Provider):
         *,
         tools: Sequence[ToolSpec] = (),
         tool_results: Sequence[ToolResult] = (),
+        history: Sequence[tuple[str, str]] = (),
     ) -> ProviderResponse:
+        """POST the stateless (prompt + tools + tool results) body to ``endpoint``.
+
+        ``history`` is part of the 1.5 Provider contract (ADR 0014) and is
+        accepted for signature compatibility; this provider has not opted
+        into native history threading — the vendor-neutral protocol keeps
+        carrying the composed transcript inside ``input`` (see
+        ``docs/protocol.md``).
+        """
         payload = self._post(self._build_body(prompt, tools, tool_results))
         return self._parse_payload(payload)
 

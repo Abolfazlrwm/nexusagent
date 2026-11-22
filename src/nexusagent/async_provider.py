@@ -36,10 +36,21 @@ class SyncProviderAdapter(AsyncProvider):
     the event loop never stalls. Tool-capable sync providers keep their
     ``generate_response()`` contract: the adapter forwards ``tools`` and
     ``tool_results`` unchanged and returns whatever the provider answered.
+
+    The native-history opt-in (ADR 0014) is mirrored from the wrapped
+    provider: the adapter exposes the same ``supports_native_history`` flag
+    and forwards the ``history`` keyword only to wrapped providers that set
+    it, so providers predating 1.5 keep their exact call shape under
+    ``AsyncAgent``.
     """
 
     def __init__(self, provider: Provider) -> None:
         self._provider = provider
+        # Mirror the wrapped provider's native-history opt-in (ADR 0014) at
+        # construction time. A plain attribute (not a property) keeps the
+        # writable ``supports_native_history`` contract attribute of
+        # ``AsyncProvider`` satisfied for mypy's override check.
+        self.supports_native_history = bool(getattr(provider, "supports_native_history", False))
 
     async def generate(self, prompt: str) -> str:
         return await asyncio.to_thread(self._provider.generate, prompt)
@@ -50,12 +61,19 @@ class SyncProviderAdapter(AsyncProvider):
         *,
         tools: Sequence[ToolSpec] = (),
         tool_results: Sequence[ToolResult] = (),
+        history: Sequence[tuple[str, str]] = (),
     ) -> ProviderResponse:
         generate_response = getattr(self._provider, "generate_response", None)
         if generate_response is None:
             return TextResponse(await asyncio.to_thread(self._provider.generate, prompt))
 
-        response: ProviderResponse = await asyncio.to_thread(
+        if self.supports_native_history:
+            response: ProviderResponse = await asyncio.to_thread(
+                generate_response, prompt, tools=tools, tool_results=tool_results, history=history
+            )
+            return response
+
+        response = await asyncio.to_thread(
             generate_response, prompt, tools=tools, tool_results=tool_results
         )
         return response
@@ -66,6 +84,7 @@ class SyncProviderAdapter(AsyncProvider):
         *,
         tools: Sequence[ToolSpec] = (),
         tool_results: Sequence[ToolResult] = (),
+        history: Sequence[tuple[str, str]] = (),
     ) -> AsyncIterator[ProviderStreamEvent]:
         """Bridge the wrapped provider's stream into the event loop (ADR 0009).
 
@@ -73,20 +92,35 @@ class SyncProviderAdapter(AsyncProvider):
         threads through ``asyncio.to_thread``, so the loop keeps yielding
         without stalling; providers without their own ``stream_response()``
         fall back to the complete ``generate_response()`` answer as a
-        single event.
+        single event. ``history`` (ADR 0014) is forwarded only to wrapped
+        providers that opted into native history threading.
         """
+        native = self.supports_native_history
         stream = getattr(self._provider, "stream_response", None)
         if stream is None:
             generate_response = getattr(self._provider, "generate_response", None)
             if generate_response is None:
                 yield TextResponse(await asyncio.to_thread(self._provider.generate, prompt))
                 return
-            yield await asyncio.to_thread(
-                generate_response, prompt, tools=tools, tool_results=tool_results
-            )
+            if native:
+                yield await asyncio.to_thread(
+                    generate_response,
+                    prompt,
+                    tools=tools,
+                    tool_results=tool_results,
+                    history=history,
+                )
+            else:
+                yield await asyncio.to_thread(
+                    generate_response, prompt, tools=tools, tool_results=tool_results
+                )
             return
 
-        iterator = stream(prompt, tools=tools, tool_results=tool_results)
+        if native:
+            iterator = stream(prompt, tools=tools, tool_results=tool_results, history=history)
+        else:
+            iterator = stream(prompt, tools=tools, tool_results=tool_results)
+
         sentinel = object()
         while True:
             event = await asyncio.to_thread(next, iterator, sentinel)

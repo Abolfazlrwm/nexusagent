@@ -81,9 +81,38 @@ def _tools_to_wire(tools: Sequence[ToolSpec]) -> list[dict[str, Any]]:
     ]
 
 
-def _messages_for(prompt: str, tool_results: Sequence[ToolResult]) -> list[dict[str, Any]]:
-    """Rehydrate the stateless (prompt + tool results) loop into Messages turns."""
-    messages: list[dict[str, Any]] = [{"role": "user", "content": prompt}]
+def _history_messages(history: Sequence[tuple[str, str]]) -> list[dict[str, Any]]:
+    """Rehydrate remembered (role, text) pairs into Messages turns (ADR 0014).
+
+    The Messages wire format requires strictly alternating ``user`` /
+    ``assistant`` roles starting with ``user``. Memory guarantees that
+    shape; as a safety net for custom backends, consecutive same-role
+    turns are merged into one message with newline-joined text.
+    """
+    merged: list[dict[str, Any]] = []
+    for role, text in history:
+        if merged and merged[-1]["role"] == role:
+            merged[-1]["content"] = f"{merged[-1]['content']}\n{text}"
+        else:
+            merged.append({"role": role, "content": text})
+    return merged
+
+
+def _messages_for(
+    prompt: str,
+    tool_results: Sequence[ToolResult],
+    history: Sequence[tuple[str, str]] = (),
+) -> list[dict[str, Any]]:
+    """Rehydrate the stateless (prompt + tool results) loop into Messages turns.
+
+    Remembered conversation turns (ADR 0014) come first, then the current
+    user prompt, then the tool-call exchange of this run's loop so far.
+    The turn after the last remembered one is always the current user
+    prompt — memory records complete ``(user, assistant)`` pairs — so the
+    alternation requirement is preserved.
+    """
+    messages: list[dict[str, Any]] = _history_messages(history)
+    messages.append({"role": "user", "content": prompt})
 
     for index, result in enumerate(tool_results):
         call_id = f"call_{index}"
@@ -209,7 +238,13 @@ class AnthropicProvider(Provider):
     ``max_tokens`` is the one extra knob the Messages wire format requires
     on every request; it defaults to ``DEFAULT_MAX_TOKENS`` and must be a
     positive integer when set explicitly.
+
+    The adapter opts into native history threading (ADR 0014): with memory
+    configured, remembered turns are rehydrated into real ``messages``
+    turns instead of a flattened prompt.
     """
+
+    supports_native_history = True
 
     def __init__(
         self, config: ProviderConfig | None = None, *, max_tokens: int | None = None
@@ -233,13 +268,14 @@ class AnthropicProvider(Provider):
         *,
         tools: Sequence[ToolSpec] = (),
         tool_results: Sequence[ToolResult] = (),
+        history: Sequence[tuple[str, str]] = (),
     ) -> ProviderResponse:
         self._validate_config()
 
         body: dict[str, object] = {
             "model": self.config.model,
             "max_tokens": self.max_tokens,
-            "messages": _messages_for(prompt, tool_results),
+            "messages": _messages_for(prompt, tool_results, history),
         }
 
         if tools:
@@ -264,29 +300,31 @@ class AnthropicProvider(Provider):
         *,
         tools: Sequence[ToolSpec] = (),
         tool_results: Sequence[ToolResult] = (),
+        history: Sequence[tuple[str, str]] = (),
     ) -> Iterator[ProviderStreamEvent]:
         """Stream the response for ``prompt`` over the SSE wire format.
 
         Requests ``stream: true`` and yields ``StreamTextDelta`` events as
         ``text_delta`` blocks arrive, then one final ``ProviderResponse``:
         the first ``tool_use`` block if one was streamed, otherwise the
-        joined text. Configuration errors raise when the method is called;
-        network and protocol errors surface while the returned iterator is
-        consumed.
+        joined text. ``history`` mirrors the sync contract (ADR 0014).
+        Configuration errors raise when the method is called; network and
+        protocol errors surface while the returned iterator is consumed.
         """
         self._validate_config()
-        return self._stream_events(prompt, tools, tool_results)
+        return self._stream_events(prompt, tools, tool_results, history)
 
     def _stream_events(
         self,
         prompt: str,
         tools: Sequence[ToolSpec],
         tool_results: Sequence[ToolResult],
+        history: Sequence[tuple[str, str]] = (),
     ) -> Iterator[ProviderStreamEvent]:
         body: dict[str, object] = {
             "model": self.config.model,
             "max_tokens": self.max_tokens,
-            "messages": _messages_for(prompt, tool_results),
+            "messages": _messages_for(prompt, tool_results, history),
             "stream": True,
         }
 

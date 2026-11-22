@@ -98,12 +98,15 @@ class Agent:
         a provider error. Without ``on_delta`` the non-streaming
         ``generate_response()`` path is used, unchanged.
 
-        With memory configured (ADR 0012) the remembered turns are composed
-        into the prompt before the first provider call of this run, and a
-        successful run records ``(user, input_text)`` and
-        ``(assistant, output)``. Failed runs — provider errors, missing
-        tools, iteration exhaustion — record nothing, so memory only ever
-        holds completed exchanges.
+        With memory configured (ADR 0012) the remembered turns reach the
+        provider either composed into the prompt text (providers that have
+        not opted into native history — the behavior is byte-for-byte the
+        pre-1.5 one) or as the structured ``history`` keyword (ADR 0014)
+        for providers whose ``supports_native_history`` flag is set, in
+        which case ``prompt`` carries the raw user input. A successful run
+        records ``(user, input_text)`` and ``(assistant, output)``. Failed
+        runs — provider errors, missing tools, iteration exhaustion —
+        record nothing, so memory only ever holds completed exchanges.
         """
         if not isinstance(input_text, str):
             raise TypeError("input_text must be a string")
@@ -114,16 +117,24 @@ class Agent:
         can_use_tools = self.tool_registry is not None and self.tool_executor is not None
         tools = self._tool_specs() if can_use_tools else ()
         tool_results: list[ToolResult] = []
-        history = self.memory.history() if self.memory is not None else ()
-        prompt = compose_prompt(input_text, history)
+        turns = self.memory.history() if self.memory is not None else ()
+        if turns and getattr(self.provider, "supports_native_history", False):
+            # Native history threading (ADR 0014): history-aware providers
+            # rehydrate the remembered turns into their native multi-message
+            # wire format; the raw input travels as the final user message.
+            history: tuple[tuple[str, str], ...] = tuple((t.role, t.text) for t in turns)
+            prompt = input_text
+        else:
+            history = ()
+            prompt = compose_prompt(input_text, turns)
 
         for iteration in range(1, self.max_iterations + 1):
             try:
                 if on_delta is None:
-                    response = self._ask_provider(prompt, tools, tuple(tool_results))
+                    response = self._ask_provider(prompt, tools, tuple(tool_results), history)
                 else:
                     response = self._stream_provider_response(
-                        prompt, tools, tuple(tool_results), on_delta
+                        prompt, tools, tuple(tool_results), on_delta, history
                     )
             except Exception as exc:  # noqa: BLE001
                 return AgentResult(output=f"provider error: {exc}", success=False)
@@ -179,20 +190,28 @@ class Agent:
         input_text: str,
         tools: tuple[ToolSpec, ...],
         tool_results: tuple[ToolResult, ...],
+        history: tuple[tuple[str, str], ...] = (),
     ) -> ProviderResponse:
         """Ask the provider for its next response.
 
         Any object with a ``generate(prompt) -> str`` method is accepted as a
         provider; only ones that also define ``generate_response`` can request
-        tools.
+        tools. The ``history`` keyword (ADR 0014) is forwarded only to
+        providers that opted into native history threading via
+        ``supports_native_history`` — every other provider keeps receiving
+        exactly the pre-1.5 keyword set.
         """
         generate_response = getattr(self.provider, "generate_response", None)
         if generate_response is None:
             return TextResponse(self.provider.generate(input_text))
 
-        response: ProviderResponse = generate_response(
-            input_text, tools=tools, tool_results=tool_results
-        )
+        if getattr(self.provider, "supports_native_history", False):
+            response: ProviderResponse = generate_response(
+                input_text, tools=tools, tool_results=tool_results, history=history
+            )
+            return response
+
+        response = generate_response(input_text, tools=tools, tool_results=tool_results)
         return response
 
     def _stream_provider_response(
@@ -201,19 +220,27 @@ class Agent:
         tools: tuple[ToolSpec, ...],
         tool_results: tuple[ToolResult, ...],
         on_delta: Callable[[str], None],
+        history: tuple[tuple[str, str], ...] = (),
     ) -> ProviderResponse:
         """Collect one streamed provider response, forwarding text deltas.
 
         Falls back to the plain ``generate_response()`` path for providers
         that do not implement ``stream_response()`` at all; ``on_delta``
-        then stays silent. The stream's final event is the iteration's
-        response; a stream that ends without one is an error.
+        then stays silent. ``history`` (ADR 0014) is forwarded only to
+        providers that opted into native history threading. The stream's
+        final event is the iteration's response; a stream that ends without
+        one is an error.
         """
         stream = getattr(self.provider, "stream_response", None)
         if stream is None:
-            return self._ask_provider(input_text, tools, tool_results)
+            return self._ask_provider(input_text, tools, tool_results, history)
 
-        for event in stream(input_text, tools=tools, tool_results=tool_results):
+        if getattr(self.provider, "supports_native_history", False):
+            events = stream(input_text, tools=tools, tool_results=tool_results, history=history)
+        else:
+            events = stream(input_text, tools=tools, tool_results=tool_results)
+
+        for event in events:
             if isinstance(event, StreamTextDelta):
                 on_delta(event.text)
             elif isinstance(event, (TextResponse, ToolCallRequest)):
