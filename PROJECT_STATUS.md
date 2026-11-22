@@ -4,7 +4,7 @@ This file exists so that whoever picks this project back up — even months
 later — can understand exactly what works, what doesn't exist yet, and
 where to resume without re-reading the entire history.
 
-## Current state: WORKING and STABLE — 1.5
+## Current state: WORKING and STABLE — 1.6
 
 - **1.0.0 declared API stability** (ADR 0010): the full public surface is
   `nexusagent.__all__` at the package root, governed by SemVer and pinned
@@ -15,17 +15,19 @@ where to resume without re-reading the entire history.
   still 37 at 1.4.0 (CLI `--version` flag and the in-browser live demo —
   no surface change) and at 1.5.0 (native per-vendor history threading,
   ADR 0014 — a capability flag and an additive keyword, no new root
-  names).
+  names), 40 at 1.6.0 (minimal multi-agent orchestration, ADR 0015 —
+  `AgentTeam`, `TeamResult`, `create_provider_router`).
 - **1.1.0 added automatic HTTP retries** (ADR 0011); **1.2.0 added
   in-process conversation memory** (ADR 0012); **1.3.0 added the
   persistent SQLite memory backend** (ADR 0013); **1.4.0 added a
   `--version` CLI flag and the live in-browser demo**; **1.5.0 added
-  native per-vendor history threading** (ADR 0014) — all additive, all
+  native per-vendor history threading** (ADR 0014); **1.6.0 added
+  minimal multi-agent orchestration** (ADR 0015) — all additive, all
   offline-tested.
-- 1260 tests, all passing.
+- 1306 tests, all passing.
 - `ruff check .` and `ruff format --check .` — clean.
 - `mypy --strict` — clean.
-- `pytest` enforces a coverage floor of 95% (currently ~99.57%).
+- `pytest` enforces a coverage floor of 95% (currently ~99.59%).
 - `python scripts/check.py` — passes.
 - No known bugs, no known regressions, no unfinished/half-done code.
 
@@ -86,6 +88,15 @@ A real, working, tested agent runtime that can:
   evicts the oldest rows beyond the cap (persistently), and supports
   `close()` / context-manager lifetime; runtimes that reopen the same
   file see the same turns.
+- **Route prompts across a team of specialists** (ADR 0015): `AgentTeam`
+  maps non-empty names to `Agent` instances and asks a router callable —
+  a plain function, or `create_provider_router(provider, names)` for a
+  one-provider-call LLM decision with a documented deterministic parse —
+  which member handles each prompt. The selected member's bounded tool
+  loop, tools, memory and streaming run unchanged; routing failures
+  become `TeamResult(success=False)` results, and `agent_name` records
+  who answered. One hop per prompt: no graphs, no handoff chains, no
+  shared team memory.
 - **Run the same runtime under asyncio** (`AsyncAgent`, `AsyncRuntime`,
   `create_async_runtime`): the sync `Agent`/`Runtime` stay first-class, and
   the async layer mirrors them contract-for-contract. Sync providers (fake,
@@ -123,8 +134,11 @@ lower layers from depending upward on higher ones.
   (`SQLiteMemory`, ADR 0013); there is no built-in Redis/PostgreSQL
   session store or cross-machine sharing (custom `Memory` backends are
   the extension point).
-- **No planning or multi-agent orchestration.** Within a run the loop is
-  single-agent: one input, one final answer.
+- **No planning layer.** Within a run the loop is single-agent and the
+  orchestration layer (ADR 0015) routes each prompt to exactly one
+  member in one hop: no plan-then-execute, no multi-hop handoff chains,
+  no shared team-level memory, and no async mirror of `AgentTeam` yet —
+  each is a scoped follow-up with its own ADR, not a hidden deficiency.
 
 ## Next natural steps (in order)
 
@@ -135,9 +149,12 @@ lower layers from depending upward on higher ones.
    the Provider contract, rehydrated by each adapter)~~ — released in
    1.5.0 (ADR 0014); the vendor-neutral `http` protocol deliberately
    keeps the composed transcript (additive-frozen).
-5. Planning / multi-agent orchestration — each with its own ADR; do not
-   add them ad hoc. Under the 1.0 policy everything stays additive; no
-   public name may move without a deprecation release.
+5. ~~Planning / multi-agent orchestration~~ — released in 1.6.0 as the
+   minimal router-over-agents layer (ADR 0015). The async mirror of the
+   team is the remaining half of this item; each further extension
+   (multi-hop handoffs, shared team memory) needs its own ADR. Under the
+   1.0 policy everything stays additive; no public name may move without
+   a deprecation release.
 
 ## How to run things
 
@@ -155,4 +172,5 @@ python -m nexusagent tool list                   # list built-in tools
 python -m nexusagent tool run echo "hello"       # run a tool directly
 python examples/tool_loop_demo.py                # watch the tool loop end to end
 python examples/streaming.py                     # watch streamed text arrive
+python examples/orchestration.py                 # watch a team route prompts to specialists
 ```
