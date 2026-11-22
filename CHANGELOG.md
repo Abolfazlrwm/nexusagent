@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-11-20
+
+### Added
+
+- **Native per-vendor history threading (ADR 0014)** — with conversation
+  memory configured (ADR 0012), the OpenAI, Anthropic and Gemini adapters
+  now rehydrate remembered turns into their wire format's real
+  multi-message conversation: proper `user`/`assistant` `messages`
+  entries on the OpenAI and Anthropic wires, `contents` with `model`
+  role on the Gemini wire — instead of the flattened text transcript.
+  The mechanism is fully additive: the Provider contract gains a
+  keyword-only `history` parameter (plain `(role, text)` pairs) plus a
+  `supports_native_history` capability flag (default False). Providers
+  that have not opted in — every user-written provider, `FakeProvider`,
+  `ScriptedProvider`, and the vendor-neutral `http` provider — keep
+  receiving the composed prompt and the exact pre-1.5 keyword set, so
+  nothing changes for existing code. Opted-in providers receive the raw
+  user input as `prompt` plus the turns as `history` on every iteration
+  of the tool loop; streaming and the async layer (including
+  `SyncProviderAdapter`) thread history identically. The public surface
+  stays at 37 names; 30 new offline tests (1230 → 1260, coverage
+  99.57%).
+- **`examples/native_history.py`** — runs the real OpenAI adapter
+  against a local echo backend and prints the exact request bodies, so
+  the native rehydration is visible offline. Added to the CI
+  examples smoke.
+- [ADR 0014](docs/adr/0014-native-history-threading.md) documents the
+  design, the rejected alternatives, and why the vendor-neutral `http`
+  protocol deliberately keeps the composed transcript.
+
 ## [1.4.0] - 2026-11-18
 
 ### Added
@@ -496,6 +526,7 @@ The **import name** remains `nexusagent`.
   `create_application_runtime`).
 
 [Unreleased]: https://github.com/Abolfazlrwm/nexusagent/compare/v1.4.0...HEAD
+[1.5.0]: https://github.com/Abolfazlrwm/nexusagent/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/Abolfazlrwm/nexusagent/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/Abolfazlrwm/nexusagent/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/Abolfazlrwm/nexusagent/compare/v1.1.0...v1.2.0
