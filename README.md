@@ -9,7 +9,7 @@
 
 **A modular runtime for AI agents in Python — zero runtime dependencies, a small readable core, and an honest feature list.**
 
-Most agent frameworks hand you a galaxy of abstractions. NexusAgent is the opposite: ~1,500 statements of typed, contract-tested core that you can read in one sitting — providers, tools, a bounded autonomous tool loop, an async mirror of the whole stack, and a CLI. Nothing hidden, nothing magic.
+Most agent frameworks hand you a galaxy of abstractions. NexusAgent is the opposite: ~1,700 statements of typed, contract-tested core that you can read in one sitting — providers, tools, a bounded autonomous tool loop, an async mirror of the whole stack, and a CLI. Nothing hidden, nothing magic.
 
 > **▶ Try it live, right now:** open the [in-browser demo](https://abolfazlrwm.github.io/nexusagent/) —
 > it loads the real wheel from PyPI (via Pyodide) and runs the actual agent loop, tool loop and
@@ -36,7 +36,7 @@ print(runtime.execute_tool("calculator", "2 + 3"))  # 5
 - **Readable by design** — the core is small enough to audit in an afternoon; architecture rules are enforced by tests, not comments.
 - **Honest** — the feature list below says what exists *and what doesn't*. No fake benchmarks, no aspirational docs.
 - **Typed** — ships `py.typed`; the source itself passes `mypy --strict`.
-- **Tested** — 1200+ contract tests, ≥95% coverage floor enforced in CI.
+- **Tested** — 1300+ contract tests, ≥95% coverage floor enforced in CI.
 
 ## Features
 
@@ -60,7 +60,8 @@ print(runtime.execute_tool("calculator", "2 + 3"))  # 5
 | Conversation memory (opt-in, in-process, provider-agnostic) | ✅ [ADR 0012](docs/adr/0012-conversation-memory.md) |
 | Persistent conversation memory (local SQLite file, same contract) | ✅ [ADR 0013](docs/adr/0013-sqlite-memory.md) |
 | Native per-vendor history threading (real `messages`/`contents` roles) | ✅ [ADR 0014](docs/adr/0014-native-history-threading.md) |
-| Planning, multi-agent orchestration | ❌ |
+| Multi-agent orchestration (explicit router-over-agents team) | ✅ [ADR 0015](docs/adr/0015-multi-agent-orchestration.md) |
+| Planning (plan-then-execute), multi-hop handoff chains, graph engines | ❌ |
 
 ## Architecture
 
@@ -342,6 +343,42 @@ Watch it offline: [`examples/native_history.py`](examples/native_history.py)
 points the real adapter at a local echo backend and prints the exact
 request body. Design details: [ADR 0014](docs/adr/0014-native-history-threading.md).
 
+### Multi-agent orchestration
+
+One prompt, one specialist, one answer: `AgentTeam` maps names to
+`Agent` instances and asks a router — a plain callable you can read —
+which member handles each prompt. The selected member's bounded tool
+loop, its tools, its memory and its streaming all run unchanged, and
+`TeamResult.agent_name` records who answered. A routing failure is a
+failed result with the reason in `output`, never a crash mid-loop.
+`create_provider_router` builds the LLM-decides variant from any
+`Provider`: one `generate()` call listing the names, then a documented,
+deterministic parse — no graphs, no handoff chains, no shared state
+(ADR 0015).
+
+```python
+from nexusagent import Agent, AgentTeam, ScriptedProvider, TextResponse, create_provider_router
+
+router = create_provider_router(scripted_router_provider, ["greeter", "math"])
+
+team = AgentTeam(
+    {
+        "greeter": Agent(ScriptedProvider([TextResponse("Nice to meet you, Sara!")])),
+        "math": math_agent_with_calculator_tool,
+    },
+    router,
+)
+
+result = team.run("what is 19 + 23?")
+print(result.agent_name)  # "math" — the specialist that handled it
+print(result.output)  # the math agent's answer, tool loop included
+```
+
+Watch it offline: [`examples/orchestration.py`](examples/orchestration.py)
+routes a math prompt through a real tool-loop member and a greeting to a
+memory-backed member. Design details:
+[ADR 0015](docs/adr/0015-multi-agent-orchestration.md).
+
 ### Async runtime
 
 The async layer mirrors the sync contracts one-to-one — `await runtime.run(...)`,
@@ -398,6 +435,7 @@ All examples run offline, with no API keys:
 - [`examples/memory.py`](examples/memory.py) — conversation memory across runs, offline
 - [`examples/sqlite_memory.py`](examples/sqlite_memory.py) — persistent SQLite memory across restarts, offline
 - [`examples/native_history.py`](examples/native_history.py) — per-vendor native history threading, offline (local echo server)
+- [`examples/orchestration.py`](examples/orchestration.py) — a two-agent team with a provider-backed router, offline
 - [`examples/async_tool_loop.py`](examples/async_tool_loop.py) — the async tool loop with an awaited tool
 - [`examples/http_provider_local.py`](examples/http_provider_local.py) — `http` provider against a local backend
 
@@ -407,7 +445,7 @@ All examples run offline, with no API keys:
 - [Concepts](docs/concepts.md) — Agent, Provider, Tool, Runtime, Settings
 - [Guides](docs/) — write a custom [provider](docs/guides/custom-provider.md), [tool](docs/guides/custom-tool.md) or [async runtime](docs/guides/async.md)
 - [HTTP protocol](docs/protocol.md) — wire format for backends
-- [ADRs](docs/adr/) — architecture decision records (0001–0014)
+- [ADRs](docs/adr/) — architecture decision records (0001–0015)
 - [Security policy](SECURITY.md) · [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md)
 
 ## Project status

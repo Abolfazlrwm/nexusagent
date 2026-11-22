@@ -18,6 +18,8 @@ EXPECTED_PUBLIC_API = (
     # Agent layer (sync and async)
     "Agent",
     "AgentResult",
+    # Multi-agent orchestration (ADR 0015)
+    "AgentTeam",
     "AsyncAgent",
     "AsyncProvider",
     "AsyncRuntime",
@@ -48,6 +50,8 @@ EXPECTED_PUBLIC_API = (
     "StreamTextDelta",
     # Sync-in-async bridge
     "SyncProviderAdapter",
+    # Multi-agent orchestration (ADR 0015)
+    "TeamResult",
     "TextResponse",
     # Tool layer
     "Tool",
@@ -61,6 +65,7 @@ EXPECTED_PUBLIC_API = (
     "create_application_runtime",
     "create_async_runtime",
     "create_provider",
+    "create_provider_router",
     "create_runtime",
 )
 

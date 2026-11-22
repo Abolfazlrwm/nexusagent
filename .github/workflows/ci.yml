@@ -75,6 +75,7 @@ jobs:
           python examples/tool_loop_demo.py
           python examples/http_provider_local.py
           python examples/native_history.py
+          python examples/orchestration.py
 
       - name: Update coverage badge (main pushes, py3.12)
         if: matrix.python-version == '3.12' && github.ref == 'refs/heads/main' && github.event_name == 'push'

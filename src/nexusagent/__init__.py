@@ -22,6 +22,7 @@ from nexusagent.async_tool_executor import AsyncToolExecutor
 from nexusagent.config import Settings
 from nexusagent.factory import create_provider
 from nexusagent.memory import ConversationTurn, InMemoryMemory, Memory, SQLiteMemory
+from nexusagent.orchestration import AgentTeam, TeamResult, create_provider_router
 from nexusagent.provider import (
     AsyncProvider,
     Provider,
@@ -44,12 +45,14 @@ from nexusagent.tool import AsyncTool, Tool
 from nexusagent.tool_executor import ToolExecutionError, ToolExecutor
 from nexusagent.tool_registry import ToolRegistry
 
-__version__ = "1.5.0"
+__version__ = "1.6.0"
 
 __all__ = [
     # Agent layer (sync and async)
     "Agent",
     "AgentResult",
+    # Multi-agent orchestration (ADR 0015)
+    "AgentTeam",
     "AsyncAgent",
     "AsyncProvider",
     "AsyncRuntime",
@@ -80,6 +83,7 @@ __all__ = [
     "StreamTextDelta",
     # Sync-in-async bridge
     "SyncProviderAdapter",
+    "TeamResult",
     "TextResponse",
     # Tool layer
     "Tool",
@@ -93,5 +97,6 @@ __all__ = [
     "create_application_runtime",
     "create_async_runtime",
     "create_provider",
+    "create_provider_router",
     "create_runtime",
 ]

@@ -20,6 +20,7 @@ flowchart TB
     subgraph L2["Agent layer"]
         AG["agent.py"]
         AAG["async_agent.py"]
+        ORC["orchestration.py (AgentTeam, ADR 0015)"]
         TE["tool_executor.py"]
         ATE["async_tool_executor.py"]
         TRG["tool_registry.py"]
@@ -75,6 +76,7 @@ flowchart TB
 | `tool_registry.py` | Name → tool mapping; duplicate registration is an error |
 | `tool_executor.py` | Runs a tool, wraps failures in `ToolExecutionError` (original class preserved in the message) |
 | `agent.py` | Validates input, runs the provider, executes the **bounded tool loop**; composes remembered turns into each run's prompt and records completed exchanges when memory is configured (ADR 0012) |
+| `orchestration.py` | Minimal multi-agent orchestration (ADR 0015): `AgentTeam` routes each prompt to one named member `Agent`; `TeamResult` records who answered; `create_provider_router()` builds a router from any `Provider` |
 | `async_provider.py` | `SyncProviderAdapter`: runs any sync provider's blocking calls in worker threads under the event loop (ADR 0006) |
 | `async_tool_executor.py` | `AsyncToolExecutor`: awaits `AsyncTool` natively, runs sync tools in a worker thread |
 | `async_agent.py` | `AsyncAgent`: awaited mirror of the bounded tool loop (ADR 0006); same memory contract as the sync agent (ADR 0012) |
