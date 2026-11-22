@@ -4,7 +4,7 @@ This file exists so that whoever picks this project back up — even months
 later — can understand exactly what works, what doesn't exist yet, and
 where to resume without re-reading the entire history.
 
-## Current state: WORKING and STABLE — 1.4
+## Current state: WORKING and STABLE — 1.5
 
 - **1.0.0 declared API stability** (ADR 0010): the full public surface is
   `nexusagent.__all__` at the package root, governed by SemVer and pinned
@@ -13,16 +13,19 @@ where to resume without re-reading the entire history.
   only grew additively: 33 names at 1.0.0, 36 at 1.2.0 (conversation
   memory, ADR 0012), 37 at 1.3.0 (persistent SQLite memory, ADR 0013),
   still 37 at 1.4.0 (CLI `--version` flag and the in-browser live demo —
-  no surface change).
+  no surface change) and at 1.5.0 (native per-vendor history threading,
+  ADR 0014 — a capability flag and an additive keyword, no new root
+  names).
 - **1.1.0 added automatic HTTP retries** (ADR 0011); **1.2.0 added
   in-process conversation memory** (ADR 0012); **1.3.0 added the
   persistent SQLite memory backend** (ADR 0013); **1.4.0 added a
-  `--version` CLI flag and the live in-browser demo** — all additive,
-  all offline-tested.
-- 1230 tests, all passing.
+  `--version` CLI flag and the live in-browser demo**; **1.5.0 added
+  native per-vendor history threading** (ADR 0014) — all additive, all
+  offline-tested.
+- 1260 tests, all passing.
 - `ruff check .` and `ruff format --check .` — clean.
 - `mypy --strict` — clean.
-- `pytest` enforces a coverage floor of 95% (currently ~99.74%).
+- `pytest` enforces a coverage floor of 95% (currently ~99.57%).
 - `python scripts/check.py` — passes.
 - No known bugs, no known regressions, no unfinished/half-done code.
 
@@ -68,6 +71,13 @@ A real, working, tested agent runtime that can:
   `compose_prompt()`. Provider-agnostic (the Provider contract is
   untouched), sync and async, failed runs record nothing; an empty
   memory composes the input byte-for-byte.
+- **Rehydrate memory natively per vendor** (ADR 0014): the OpenAI,
+  Anthropic and Gemini adapters opt into structured history — remembered
+  turns ride the wire as real `messages` / `contents` entries (roles
+  intact, `assistant` → `model` on Gemini) instead of a flattened
+  transcript; every other provider keeps the composed prompt
+  byte-for-byte, and the vendor-neutral `http` protocol deliberately
+  stays frozen.
 - **Keep memory across restarts with `SQLiteMemory`** (ADR 0013): the
   same three-method contract and FIFO semantics, persisted to a local
   SQLite database file (stdlib `sqlite3`, still zero dependencies).
@@ -121,9 +131,10 @@ lower layers from depending upward on higher ones.
 1. ~~Release 1.1.0 (HTTP retries/backoff, ADR 0011)~~ — released.
 2. ~~In-process memory between runs (ADR 0012)~~ — released in 1.2.0.
 3. ~~Persistent SQLite memory backend (ADR 0013)~~ — released in 1.3.0.
-4. Native per-vendor history threading (an additive `history` keyword on
-   the Provider contract, rehydrated by each adapter) — a candidate for a
-   later minor release; must remain additive per ADR 0010.
+4. ~~Native per-vendor history threading (additive `history` keyword on
+   the Provider contract, rehydrated by each adapter)~~ — released in
+   1.5.0 (ADR 0014); the vendor-neutral `http` protocol deliberately
+   keeps the composed transcript (additive-frozen).
 5. Planning / multi-agent orchestration — each with its own ADR; do not
    add them ad hoc. Under the 1.0 policy everything stays additive; no
    public name may move without a deprecation release.
