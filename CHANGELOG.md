@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-11-23
+
+### Added
+
+- **Minimal multi-agent orchestration (ADR 0015)** — one prompt in, one
+  named specialist out, that agent's own result back. `AgentTeam` maps
+  non-empty names to `Agent` instances (validated eagerly) and asks a
+  router callable which member handles each prompt; the selected
+  member's bounded tool loop, tools, memory and streaming all run
+  unchanged. Routing failures — any router exception or an unknown
+  name — become `TeamResult(success=False)` results with the reason in
+  `output`, mirroring how `Agent.run` reports provider errors;
+  `TeamResult.agent_name` records who answered.
+- **`create_provider_router(provider, agent_names)`** — builds the
+  LLM-decides variant of the router from any `Provider`: one
+  `generate()` call listing the agent names and the user prompt, then a
+  documented, deterministic parse (exact match after stripping,
+  case-insensitive exact match, otherwise the earliest listed name
+  appearing in the reply; ties resolve to the earlier listed name). No
+  match raises `ProviderResponseError`, which the team converts into a
+  failed result. The router never runs the tool loop — a routing
+  decision is one question, not a conversation.
+- **Additive per ADR 0010**: the root surface grows 37 → 40
+  (`AgentTeam`, `TeamResult`, `create_provider_router`); zero renames
+  or removals. 46 new offline tests (1260 → 1306, coverage 99.59%).
+  The async mirror of the team is deliberately deferred and named in
+  ADR 0015 as the next step.
+- **`examples/orchestration.py`** — a two-agent team (a calculator
+  tool-loop member and a memory-backed greeter) routed by a scripted
+  provider router, fully offline. Added to the CI examples smoke.
+- [ADR 0015](docs/adr/0015-multi-agent-orchestration.md) documents the
+  design and the rejected alternatives (graph orchestrators,
+  agent-negotiated handoffs).
+
 ## [1.5.0] - 2026-11-20
 
 ### Added
