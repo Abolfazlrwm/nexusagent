@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-11-23
+
+### Added
+
+- **The offline demo brain (ADR 0016)** — `DemoProvider` ships in the
+  public API (root surface 40 → 41, additive per ADR 0010) so the real
+  Agent loop runs with zero API keys and zero network, and still answers
+  questions worth reading. A small closed fact sheet answers colors
+  exactly (`what color is the sky?` gets Rayleigh scattering, not an
+  echo); chain math (`2+2*3`) goes through the real calculator tool
+  loop, and fed-back tool results are phrased into answers; names are
+  remembered across runs from the composed transcript; `generate()`
+  understands the ADR 0015 routing-decision shape, so an `AgentTeam`
+  is runnable fully offline; `stream_response()` streams word by word
+  per ADR 0009. Everything it cannot answer gets a truthful fallback
+  naming the built-in real providers. Deterministic by contract — same
+  prompt, same answer — pinned by 46 new offline tests (1306 → 1352),
+  including an end-to-end offline `agent.run("what is 144 / 12?")`
+  through the real tool loop.
+- `examples/demo_provider.py` — the four demo-brain tricks end to end,
+  offline; added to the CI examples smoke.
+
+
 ## [1.6.0] - 2026-11-23
 
 ### Added
