@@ -177,7 +177,7 @@
     <div class="kicker">Live demo · Pyodide + the actual PyPI wheel</div>
     <h2>Watch the agent loop think — in your browser</h2>
     <p class="sub">No install, no API keys. Click <b>Boot runtime</b> and this page loads CPython (WASM)
-      plus <code style="font-family:var(--mono)">nexusagent-runtime==1.7.0</code> straight from PyPI.
+      plus <code style="font-family:var(--mono)">nexusagent-runtime==1.8.0</code> straight from PyPI.
       The “model” is a small scripted router so everything stays offline and deterministic — the
       <b>agent loop, tool execution, memory and streaming are the real package code</b>, traced line by line.</p>
 
@@ -219,9 +219,11 @@
             <button id="btn-run" onclick="runUserPrompt()" disabled>Run</button>
           </div>
           <div class="hint">
-            Type any prompt: the offline demo brain (ADR 0016) answers color facts, routes arithmetic like
+            Type any prompt: the offline demo brain (ADR 0016/0017) answers chess, color and science facts — try
+            <code>who start first in chess? black or white</code> or <code>why is the sky blue?</code> — routes arithmetic like
             <code>what is 144 / 12</code> through the real <code>calculator</code> tool loop, remembers
-            <code>my name is …</code> across runs, and falls back honestly on anything else — deterministic, zero API keys.
+            <code>my name is …</code> across runs, suggests the closest topic when it misses, and falls back honestly on
+            anything else — deterministic, zero API keys.
           </div>
         </div>
       </div>
@@ -309,6 +311,7 @@ runtime = <span class="fn">create_runtime</span>(memory=memory)
       <a class="adr" href="https://github.com/Abolfazlrwm/nexusagent/blob/main/docs/adr/0014-native-history-threading.md">0014 · native history</a>
       <a class="adr" href="https://github.com/Abolfazlrwm/nexusagent/blob/main/docs/adr/0015-multi-agent-orchestration.md">0015 · agent team</a>
       <a class="adr" href="https://github.com/Abolfazlrwm/nexusagent/blob/main/docs/adr/0016-offline-demo-provider.md">0016 · demo brain</a>
+      <a class="adr" href="https://github.com/Abolfazlrwm/nexusagent/blob/main/docs/adr/0017-demo-brain-knowledge-sheet.md">0017 · knowledge sheet</a>
     </div>
   </div>
 </section>
@@ -459,7 +462,7 @@ def run_stream(text="Explain: why is a readable core a good idea?"):
 
 
 def run_user_prompt(text):
-    _emit("run", f"agent.run({text!r}) — the offline demo brain (ADR 0016)")
+    _emit("run", f"agent.run({text!r}) — the offline demo brain (ADR 0016/0017)")
     result = _demo_agent.run(text)
     _emit("info", f"DemoProvider answered in {_brain.calls} call(s) — "
                   "deterministic, no API keys")
@@ -580,11 +583,11 @@ _emit("info", f"nexusagent {nexusagent.__version__} ready — {len(nexusagent.__
       appendTrace("loading micropip …", "info");
       await pyodide.loadPackage("micropip");
       const micropip = pyodide.pyimport("micropip");
-      appendTrace("installing nexusagent-runtime==1.7.0 from PyPI (the real wheel) …", "info");
-      await micropip.install("nexusagent-runtime==1.7.0");
-      appendTrace("wiring agents: scripted RouterProvider (scenarios) + the offline DemoProvider brain (your prompts, ADR 0016) + tool registry (echo, uppercase, calculator) + shared memory …", "info");
+      appendTrace("installing nexusagent-runtime==1.8.0 from PyPI (the real wheel) …", "info");
+      await micropip.install("nexusagent-runtime==1.8.0");
+      appendTrace("wiring agents: scripted RouterProvider (scenarios) + the offline DemoProvider brain with its knowledge sheet (your prompts, ADR 0016/0017) + tool registry (echo, uppercase, calculator) + shared memory …", "info");
       await pyodide.runPythonAsync(document.getElementById("demo-py").textContent);
-      bootStatus.textContent = "ready · nexusagent 1.7.0";
+      bootStatus.textContent = "ready · nexusagent 1.8.0";
       bootStatus.className = "status ready";
       document.querySelectorAll(".scen[disabled]").forEach((b) => (b.disabled = false));
       userInput.disabled = false;
