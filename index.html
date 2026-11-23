@@ -158,7 +158,7 @@
       <img alt="Python" src="https://img.shields.io/pypi/pyversions/nexusagent-runtime?style=flat&colorA=121924&colorB=1f2a38">
       <img alt="CI" src="https://github.com/Abolfazlrwm/nexusagent/actions/workflows/ci.yml/badge.svg">
       <img alt="License" src="https://img.shields.io/badge/license-MIT-blue?style=flat&colorA=121924&colorB=1f2a38">
-      <img alt="Tests" src="https://img.shields.io/badge/tests-1306_passing-34d399?style=flat&colorA=121924&colorB=1f2a38">
+      <img alt="Tests" src="https://img.shields.io/badge/tests-1352_passing-34d399?style=flat&colorA=121924&colorB=1f2a38">
     </div>
     <h1>The <span class="grad">readable</span> AI agent runtime.</h1>
     <p class="tagline">Zero runtime dependencies, a core you can read in one sitting, a bounded
@@ -177,7 +177,7 @@
     <div class="kicker">Live demo · Pyodide + the actual PyPI wheel</div>
     <h2>Watch the agent loop think — in your browser</h2>
     <p class="sub">No install, no API keys. Click <b>Boot runtime</b> and this page loads CPython (WASM)
-      plus <code style="font-family:var(--mono)">nexusagent-runtime==1.6.0</code> straight from PyPI.
+      plus <code style="font-family:var(--mono)">nexusagent-runtime==1.7.0</code> straight from PyPI.
       The “model” is a small scripted router so everything stays offline and deterministic — the
       <b>agent loop, tool execution, memory and streaming are the real package code</b>, traced line by line.</p>
 
@@ -214,13 +214,14 @@
             <span>Text fragments arrive one by one through <code>on_delta</code> and assemble into the final answer.</span>
           </button>
           <div class="user-row">
-            <input id="user-input" placeholder="Your prompt — try: what is 144 / 12?" disabled
+            <input id="user-input" placeholder="Your prompt — try: what color is the sky?" disabled
                    onkeydown="if(event.key==='Enter')runUserPrompt()">
             <button id="btn-run" onclick="runUserPrompt()" disabled>Run</button>
           </div>
           <div class="hint">
-            Type any prompt: arithmetic like <code>what is (…) — number operator number</code> routes to the
-            <code>calculator</code> tool, <code>my name is …</code> is remembered, everything else gets a scripted echo.
+            Type any prompt: the offline demo brain (ADR 0016) answers color facts, routes arithmetic like
+            <code>what is 144 / 12</code> through the real <code>calculator</code> tool loop, remembers
+            <code>my name is …</code> across runs, and falls back honestly on anything else — deterministic, zero API keys.
           </div>
         </div>
       </div>
@@ -249,7 +250,7 @@
       <div class="card"><div class="ico">⚡</div><h3>Async mirror</h3><p><code>AsyncAgent</code>/<code>AsyncRuntime</code> mirror every sync contract; sync providers keep working via a thread bridge.</p></div>
       <div class="card"><div class="ico">🛡</div><h3>Automatic retries</h3><p>Transient HTTP failures retried with exponential backoff, full jitter and <code>Retry-After</code> support.</p></div>
       <div class="card"><div class="ico">🔒</div><h3>Stable public API</h3><p>SemVer over the full root surface; a CI-pinned test fails on any accidental removal, rename or silent addition.</p></div>
-      <div class="card"><div class="ico">✅</div><h3>Typed & tested</h3><p><code>py.typed</code>, <code>mypy --strict</code> clean, 1230 offline tests, 99.7%+ coverage with a 95% CI floor.</p></div>
+      <div class="card"><div class="ico">✅</div><h3>Typed & tested</h3><p><code>py.typed</code>, <code>mypy --strict</code> clean, 1350+ offline tests, 99.6%+ coverage with a 95% CI floor.</p></div>
     </div>
   </div>
 </section>
@@ -291,7 +292,7 @@ runtime = <span class="fn">create_runtime</span>(memory=memory)
 <section id="adr">
   <div class="wrap">
     <div class="kicker">Architecture decisions</div>
-    <h2>Fifteen ADRs, all readable</h2>
+    <h2>Sixteen ADRs, all readable</h2>
     <p class="sub">Every decision that shaped the runtime is recorded, dated and linked.</p>
     <div class="adr-row">
       <a class="adr" href="https://github.com/Abolfazlrwm/nexusagent/blob/main/docs/adr/0001-sync-first-core.md">0001 · sync-first core</a>
@@ -307,6 +308,7 @@ runtime = <span class="fn">create_runtime</span>(memory=memory)
       <a class="adr" href="https://github.com/Abolfazlrwm/nexusagent/blob/main/docs/adr/0013-sqlite-memory.md">0013 · SQLite memory</a>
       <a class="adr" href="https://github.com/Abolfazlrwm/nexusagent/blob/main/docs/adr/0014-native-history-threading.md">0014 · native history</a>
       <a class="adr" href="https://github.com/Abolfazlrwm/nexusagent/blob/main/docs/adr/0015-multi-agent-orchestration.md">0015 · agent team</a>
+      <a class="adr" href="https://github.com/Abolfazlrwm/nexusagent/blob/main/docs/adr/0016-offline-demo-provider.md">0016 · demo brain</a>
     </div>
   </div>
 </section>
@@ -332,8 +334,8 @@ except ImportError:
 
 import nexusagent
 
-from nexusagent import (Agent, AgentTeam, InMemoryMemory, Provider, StreamTextDelta,
-                        TextResponse, ToolCallRequest, ToolExecutor,
+from nexusagent import (Agent, AgentTeam, DemoProvider, InMemoryMemory, Provider,
+                        StreamTextDelta, TextResponse, ToolCallRequest, ToolExecutor,
                         ToolResult, ToolSpec, create_provider_router)
 from nexusagent.tool_factory import create_tool_registry
 
@@ -407,6 +409,16 @@ _agent = Agent(
     memory=_memory,
 )
 
+# ADR 0016: free-form prompts go through the shipped offline demo brain —
+# same memory and tools, deterministic answers, zero API keys.
+_brain = DemoProvider()
+_demo_agent = Agent(
+    _brain,
+    tool_registry=create_tool_registry(),
+    tool_executor=ToolExecutor(),
+    memory=_memory,
+)
+
 
 def reset():
     _provider.calls = 0
@@ -447,8 +459,10 @@ def run_stream(text="Explain: why is a readable core a good idea?"):
 
 
 def run_user_prompt(text):
-    _emit("run", f"agent.run({text!r})")
-    result = _agent.run(text)
+    _emit("run", f"agent.run({text!r}) — the offline demo brain (ADR 0016)")
+    result = _demo_agent.run(text)
+    _emit("info", f"DemoProvider answered in {_brain.calls} call(s) — "
+                  "deterministic, no API keys")
     _emit("answer", result.output)
     return result.output
 
@@ -528,7 +542,7 @@ def composed_prompt(text):
     return compose_prompt(text, _memory.history())
 
 
-_emit("info", f"nexusagent {nexusagent.__version__} ready — 40 public names, real agent loop wired")
+_emit("info", f"nexusagent {nexusagent.__version__} ready — {len(nexusagent.__all__)} public names, real agent loop wired")
 </script>
 
 <script>
@@ -566,11 +580,11 @@ _emit("info", f"nexusagent {nexusagent.__version__} ready — 40 public names, r
       appendTrace("loading micropip …", "info");
       await pyodide.loadPackage("micropip");
       const micropip = pyodide.pyimport("micropip");
-      appendTrace("installing nexusagent-runtime==1.6.0 from PyPI (the real wheel) …", "info");
-      await micropip.install("nexusagent-runtime==1.6.0");
-      appendTrace("wiring agent: RouterProvider + tool registry (echo, uppercase, calculator) + InMemoryMemory …", "info");
+      appendTrace("installing nexusagent-runtime==1.7.0 from PyPI (the real wheel) …", "info");
+      await micropip.install("nexusagent-runtime==1.7.0");
+      appendTrace("wiring agents: scripted RouterProvider (scenarios) + the offline DemoProvider brain (your prompts, ADR 0016) + tool registry (echo, uppercase, calculator) + shared memory …", "info");
       await pyodide.runPythonAsync(document.getElementById("demo-py").textContent);
-      bootStatus.textContent = "ready · nexusagent 1.6.0";
+      bootStatus.textContent = "ready · nexusagent 1.7.0";
       bootStatus.className = "status ready";
       document.querySelectorAll(".scen[disabled]").forEach((b) => (b.disabled = false));
       userInput.disabled = false;
