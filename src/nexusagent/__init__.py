@@ -20,6 +20,7 @@ from nexusagent.async_provider import SyncProviderAdapter
 from nexusagent.async_runtime import AsyncRuntime, create_async_runtime
 from nexusagent.async_tool_executor import AsyncToolExecutor
 from nexusagent.config import Settings
+from nexusagent.demo_provider import DemoProvider
 from nexusagent.factory import create_provider
 from nexusagent.memory import ConversationTurn, InMemoryMemory, Memory, SQLiteMemory
 from nexusagent.orchestration import AgentTeam, TeamResult, create_provider_router
@@ -45,7 +46,7 @@ from nexusagent.tool import AsyncTool, Tool
 from nexusagent.tool_executor import ToolExecutionError, ToolExecutor
 from nexusagent.tool_registry import ToolRegistry
 
-__version__ = "1.6.0"
+__version__ = "1.7.0"
 
 __all__ = [
     # Agent layer (sync and async)
@@ -60,6 +61,8 @@ __all__ = [
     "AsyncToolExecutor",
     # Conversation memory (ADR 0012)
     "ConversationTurn",
+    # Offline demo brain (ADR 0016)
+    "DemoProvider",
     # Offline / testing providers
     "FakeProvider",
     # Conversation memory (ADR 0012), continued

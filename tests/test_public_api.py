@@ -27,6 +27,8 @@ EXPECTED_PUBLIC_API = (
     "AsyncToolExecutor",
     # Conversation memory (ADR 0012)
     "ConversationTurn",
+    # Offline demo brain (ADR 0016)
+    "DemoProvider",
     # Offline / testing providers
     "FakeProvider",
     # Conversation memory (ADR 0012), continued

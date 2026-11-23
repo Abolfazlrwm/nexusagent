@@ -16,18 +16,19 @@ where to resume without re-reading the entire history.
   no surface change) and at 1.5.0 (native per-vendor history threading,
   ADR 0014 — a capability flag and an additive keyword, no new root
   names), 40 at 1.6.0 (minimal multi-agent orchestration, ADR 0015 —
-  `AgentTeam`, `TeamResult`, `create_provider_router`).
+  `AgentTeam`, `TeamResult`, `create_provider_router`) and 41 at 1.7.0
+  (the offline demo brain, ADR 0016 — `DemoProvider`).
 - **1.1.0 added automatic HTTP retries** (ADR 0011); **1.2.0 added
   in-process conversation memory** (ADR 0012); **1.3.0 added the
   persistent SQLite memory backend** (ADR 0013); **1.4.0 added a
   `--version` CLI flag and the live in-browser demo**; **1.5.0 added
   native per-vendor history threading** (ADR 0014); **1.6.0 added
-  minimal multi-agent orchestration** (ADR 0015) — all additive, all
-  offline-tested.
-- 1306 tests, all passing.
+  minimal multi-agent orchestration** (ADR 0015); **1.7.0 added the
+  offline demo brain** (ADR 0016) — all additive, all offline-tested.
+- 1352 tests, all passing.
 - `ruff check .` and `ruff format --check .` — clean.
 - `mypy --strict` — clean.
-- `pytest` enforces a coverage floor of 95% (currently ~99.59%).
+- `pytest` enforces a coverage floor of 95% (currently ~99.5%).
 - `python scripts/check.py` — passes.
 - No known bugs, no known regressions, no unfinished/half-done code.
 
@@ -97,6 +98,14 @@ A real, working, tested agent runtime that can:
   become `TeamResult(success=False)` results, and `agent_name` records
   who answered. One hop per prompt: no graphs, no handoff chains, no
   shared team memory.
+- **Run the full loop with zero API keys** (ADR 0016): `DemoProvider`
+  answers a small closed fact sheet (colors chief among them — the sky
+  comes back blue with Rayleigh scattering), routes chain math through
+  the real calculator tool loop, remembers names across runs from the
+  composed transcript, streams word by word, understands the ADR 0015
+  routing-decision shape so an `AgentTeam` runs offline, and falls back
+  honestly on everything else. Deterministic by contract — same prompt,
+  same answer.
 - **Run the same runtime under asyncio** (`AsyncAgent`, `AsyncRuntime`,
   `create_async_runtime`): the sync `Agent`/`Runtime` stay first-class, and
   the async layer mirrors them contract-for-contract. Sync providers (fake,
@@ -173,4 +182,5 @@ python -m nexusagent tool run echo "hello"       # run a tool directly
 python examples/tool_loop_demo.py                # watch the tool loop end to end
 python examples/streaming.py                     # watch streamed text arrive
 python examples/orchestration.py                 # watch a team route prompts to specialists
+python examples/demo_provider.py                 # watch the offline demo brain answer
 ```

@@ -61,6 +61,7 @@ print(runtime.execute_tool("calculator", "2 + 3"))  # 5
 | Persistent conversation memory (local SQLite file, same contract) | ✅ [ADR 0013](docs/adr/0013-sqlite-memory.md) |
 | Native per-vendor history threading (real `messages`/`contents` roles) | ✅ [ADR 0014](docs/adr/0014-native-history-threading.md) |
 | Multi-agent orchestration (explicit router-over-agents team) | ✅ [ADR 0015](docs/adr/0015-multi-agent-orchestration.md) |
+| Offline demo brain — run the full loop with zero API keys | ✅ [ADR 0016](docs/adr/0016-offline-demo-provider.md) |
 | Planning (plan-then-execute), multi-hop handoff chains, graph engines | ❌ |
 
 ## Architecture
@@ -379,6 +380,37 @@ routes a math prompt through a real tool-loop member and a greeting to a
 memory-backed member. Design details:
 [ADR 0015](docs/adr/0015-multi-agent-orchestration.md).
 
+### The offline demo brain
+
+`DemoProvider` ships with the runtime so the full loop — bounded tool loop,
+memory, streaming — runs with zero API keys and zero network, and still
+answers questions worth reading: the sky comes back blue with the reason
+(Rayleigh scattering), math goes through the real calculator tool, and your
+name is remembered across runs. It is deterministic by contract (same prompt,
+same answer), it understands the ADR 0015 routing-decision shape so an
+`AgentTeam` runs offline, and every open-ended question gets a truthful
+fallback naming the real providers to wire next (ADR 0016).
+
+```python
+from nexusagent import Agent, DemoProvider, InMemoryMemory, ToolExecutor
+from nexusagent.tool_factory import create_tool_registry
+
+agent = Agent(
+    DemoProvider(),
+    tool_registry=create_tool_registry(),
+    tool_executor=ToolExecutor(),
+    memory=InMemoryMemory(),
+)
+
+print(agent.run("what is 144 / 12?").output)  # "144 / 12 equals 12." — real tool loop
+print(agent.run("what color is the sky?").output)  # "Blue. Air molecules scatter…"
+print(agent.run("my name is Sara").output)  # remembered via InMemoryMemory
+print(agent.run("what is my name?").output)  # "Your name is Sara — remembered…"
+```
+
+Watch it offline: [`examples/demo_provider.py`](examples/demo_provider.py).
+Design details: [ADR 0016](docs/adr/0016-offline-demo-provider.md).
+
 ### Async runtime
 
 The async layer mirrors the sync contracts one-to-one — `await runtime.run(...)`,
@@ -436,6 +468,7 @@ All examples run offline, with no API keys:
 - [`examples/sqlite_memory.py`](examples/sqlite_memory.py) — persistent SQLite memory across restarts, offline
 - [`examples/native_history.py`](examples/native_history.py) — per-vendor native history threading, offline (local echo server)
 - [`examples/orchestration.py`](examples/orchestration.py) — a two-agent team with a provider-backed router, offline
+- [`examples/demo_provider.py`](examples/demo_provider.py) — the offline demo brain: facts, tool-loop math, name memory
 - [`examples/async_tool_loop.py`](examples/async_tool_loop.py) — the async tool loop with an awaited tool
 - [`examples/http_provider_local.py`](examples/http_provider_local.py) — `http` provider against a local backend
 
@@ -445,7 +478,7 @@ All examples run offline, with no API keys:
 - [Concepts](docs/concepts.md) — Agent, Provider, Tool, Runtime, Settings
 - [Guides](docs/) — write a custom [provider](docs/guides/custom-provider.md), [tool](docs/guides/custom-tool.md) or [async runtime](docs/guides/async.md)
 - [HTTP protocol](docs/protocol.md) — wire format for backends
-- [ADRs](docs/adr/) — architecture decision records (0001–0015)
+- [ADRs](docs/adr/) — architecture decision records (0001–0016)
 - [Security policy](SECURITY.md) · [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md)
 
 ## Project status
