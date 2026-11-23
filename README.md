@@ -385,11 +385,15 @@ memory-backed member. Design details:
 `DemoProvider` ships with the runtime so the full loop — bounded tool loop,
 memory, streaming — runs with zero API keys and zero network, and still
 answers questions worth reading: the sky comes back blue with the reason
-(Rayleigh scattering), math goes through the real calculator tool, and your
-name is remembered across runs. It is deterministic by contract (same prompt,
-same answer), it understands the ADR 0015 routing-decision shape so an
-`AgentTeam` runs offline, and every open-ended question gets a truthful
-fallback naming the real providers to wire next (ADR 0016).
+(Rayleigh scattering) — asked as "what color" or "why" alike — chess answers
+that white moves first, the speed of light, the sun/moon distances, the
+boiling point of water, pi, planets and a dozen more closed facts come off a
+keyword-scored knowledge sheet (ADR 0017), math goes through the real
+calculator tool, and your name is remembered across runs. It is deterministic
+by contract (same prompt, same answer), it understands the ADR 0015
+routing-decision shape so an `AgentTeam` runs offline, and every miss turns
+into a did-you-mean for the closest sheet topic before the truthful fallback
+names the real providers to wire next (ADR 0016).
 
 ```python
 from nexusagent import Agent, DemoProvider, InMemoryMemory, ToolExecutor
@@ -404,12 +408,14 @@ agent = Agent(
 
 print(agent.run("what is 144 / 12?").output)  # "144 / 12 equals 12." — real tool loop
 print(agent.run("what color is the sky?").output)  # "Blue. Air molecules scatter…"
+print(agent.run("who start first in chess?").output)  # "White moves first. Every standard…"
 print(agent.run("my name is Sara").output)  # remembered via InMemoryMemory
 print(agent.run("what is my name?").output)  # "Your name is Sara — remembered…"
 ```
 
 Watch it offline: [`examples/demo_provider.py`](examples/demo_provider.py).
-Design details: [ADR 0016](docs/adr/0016-offline-demo-provider.md).
+Design details: [ADR 0016](docs/adr/0016-offline-demo-provider.md) and
+[ADR 0017](docs/adr/0017-demo-brain-knowledge-sheet.md).
 
 ### Async runtime
 
@@ -468,7 +474,7 @@ All examples run offline, with no API keys:
 - [`examples/sqlite_memory.py`](examples/sqlite_memory.py) — persistent SQLite memory across restarts, offline
 - [`examples/native_history.py`](examples/native_history.py) — per-vendor native history threading, offline (local echo server)
 - [`examples/orchestration.py`](examples/orchestration.py) — a two-agent team with a provider-backed router, offline
-- [`examples/demo_provider.py`](examples/demo_provider.py) — the offline demo brain: facts, tool-loop math, name memory
+- [`examples/demo_provider.py`](examples/demo_provider.py) — the offline demo brain: facts, knowledge sheet, tool-loop math, name memory
 - [`examples/async_tool_loop.py`](examples/async_tool_loop.py) — the async tool loop with an awaited tool
 - [`examples/http_provider_local.py`](examples/http_provider_local.py) — `http` provider against a local backend
 

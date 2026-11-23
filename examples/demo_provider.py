@@ -5,6 +5,7 @@ bounded tool loop, memory, streaming — with zero API keys and zero
 network. This example exercises all four tricks deterministically:
 
     "what color is the sky?"  -> fact-sheet answer (Rayleigh scattering)
+    "who start first in chess?" -> knowledge-sheet answer (white moves first)
     "what is 144 / 12?"       -> real tool loop via the calculator tool
     "my name is Sara"         -> recorded by InMemoryMemory (ADR 0012)
     "what is my name?"        -> recovered from the composed transcript
@@ -28,6 +29,7 @@ def main() -> None:
 
     for prompt in (
         "what color is the sky?",
+        "who start first in chess? black or white",
         "what is 144 / 12?",
         "my name is Sara",
         "what is my name?",

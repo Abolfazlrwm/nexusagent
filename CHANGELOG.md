@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-11-23
+
+### Added
+
+- **The demo brain knowledge sheet (ADR 0017)** — `DemoProvider` grows
+  from one color sheet to three answer layers with **no public surface
+  change** (the root stays at 41 names, additive per ADR 0010). A new
+  keyword-scored knowledge sheet answers closed, verifiable everyday
+  questions exactly: `who start first in chess? black or white` gets
+  "White moves first", `why is the sky blue?` gets the same Rayleigh
+  explanation as the color sheet, plus the speed of light, the sun/moon
+  distances, the boiling point of water, body temperature, pi, leap
+  years, continents, oceans, planets, Everest, the blue whale, the
+  cheetah and human bones. Matching scores distinct keyword hits —
+  highest wins, ties stay with the earlier entry — so every lookup is
+  byte-reproducible.
+- **Did-you-mean on every miss** — a color-sheet miss suggests the
+  closest known noun (`what color is the skys?` → "did you mean 'sky'?"),
+  a total miss suggests the closest topic (`tell me about the moon
+  landing` → "did you mean how far the moon is?"), and both keep the
+  honest fallback beneath them. Prompts touching no topic still get the
+  unchanged plain fallback, a pinned byte-stable constant.
+- The fallback and capabilities replies now advertise the new reach, so
+  the next visitor's first question is one the brain can answer.
+- 29 new offline tests (1352 → 1381): the user's exact chess question,
+  all 16 knowledge entries, case/punctuation insensitivity, sun-vs-moon
+  scoring, byte-for-byte determinism, both suggestion paths and the
+  no-suggestion fallback equality.
+
 ## [1.7.0] - 2026-11-23
 
 ### Added

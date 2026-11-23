@@ -324,3 +324,110 @@ def test_agent_streams_the_demo_brain_word_by_word():
     assert result.success
     assert len(chunks) > 1
     assert "".join(chunks).strip() == result.output.strip()
+
+
+# -- the knowledge sheet (v1.8.0, ADR 0017) --------------------------------
+
+
+def test_chess_question_names_white(provider: DemoProvider):
+    response = provider.generate_response("who start first in chess? black or white")
+
+    assert isinstance(response, TextResponse)
+    assert "White moves first" in response.text
+    assert "black never starts" in response.text
+
+
+@pytest.mark.parametrize(
+    ("prompt", "expected"),
+    [
+        ("why is the sky blue?", "Rayleigh"),
+        ("how fast does light travel?", "299,792,458"),
+        ("how far is the sun?", "149.6"),
+        ("how far is the moon?", "384,400"),
+        ("what is the boiling point of water?", "100 °C"),
+        ("what is a normal body temperature?", "37 °C"),
+        ("what is pi?", "3.141592653589793"),
+        ("how many days are in a year?", "365"),
+        ("what is a leap year?", "366"),
+        ("how many continents are there?", "Seven"),
+        ("how many oceans are there?", "Five"),
+        ("how many planets are in the solar system?", "Eight"),
+        ("what is the tallest mountain?", "Everest"),
+        ("what is the largest animal?", "blue whale"),
+        ("what is the fastest land animal?", "cheetah"),
+        ("how many bones does a human have?", "206"),
+    ],
+)
+def test_knowledge_sheet_entries(provider: DemoProvider, prompt: str, expected: str):
+    response = provider.generate_response(prompt)
+
+    assert isinstance(response, TextResponse)
+    assert expected in response.text
+
+
+def test_knowledge_is_case_and_punctuation_insensitive(provider: DemoProvider):
+    response = provider.generate_response("WHO Moves FIRST In CHESS")
+
+    assert isinstance(response, TextResponse)
+    assert "White moves first" in response.text
+
+
+def test_knowledge_scoring_keeps_sun_and_moon_apart(provider: DemoProvider):
+    response = provider.generate_response("how far is the moon from the earth")
+
+    assert isinstance(response, TextResponse)
+    assert "384,400" in response.text
+    assert "149.6" not in response.text
+
+
+@pytest.mark.parametrize(
+    "prompt",
+    [
+        "who start first in chess? black or white",
+        "why is the sky blue?",
+        "how far is the moon?",
+        "what is pi?",
+        "how many planets are in the solar system?",
+        "how many bones does a human have?",
+    ],
+)
+def test_knowledge_answers_are_deterministic(provider: DemoProvider, prompt: str):
+    first = provider.generate_response(prompt)
+    second = provider.generate_response(prompt)
+
+    assert first == second
+
+
+# -- did-you-mean suggestions (v1.8.0) --------------------------------------
+
+
+def test_color_miss_suggests_a_close_noun(provider: DemoProvider):
+    response = provider.generate_response("what color is the skys?")
+
+    assert isinstance(response, TextResponse)
+    assert "did you mean" in response.text.lower()
+    assert "sky" in response.text.lower()
+
+
+def test_fallback_suggests_a_close_topic(provider: DemoProvider):
+    response = provider.generate_response("tell me about the moon landing")
+
+    assert isinstance(response, TextResponse)
+    assert "did you mean" in response.text.lower()
+    assert "moon" in response.text.lower()
+    assert "OpenAI" in response.text
+
+
+def test_fallback_without_a_nearby_topic_is_the_plain_reply(provider: DemoProvider):
+    response = provider.generate_response("explain quantum entanglement")
+
+    assert isinstance(response, TextResponse)
+    assert response.text == _FALLBACK_REPLY
+
+
+def test_known_topics_still_answer_instead_of_suggesting(provider: DemoProvider):
+    response = provider.generate_response("what is the speed of light?")
+
+    assert isinstance(response, TextResponse)
+    assert "299,792,458" in response.text
+    assert "did you mean" not in response.text.lower()
