@@ -177,7 +177,7 @@
     <div class="kicker">Live demo · Pyodide + the actual PyPI wheel</div>
     <h2>Watch the agent loop think — in your browser</h2>
     <p class="sub">No install, no API keys. Click <b>Boot runtime</b> and this page loads CPython (WASM)
-      plus <code style="font-family:var(--mono)">nexusagent-runtime==1.8.0</code> straight from PyPI.
+      plus <code style="font-family:var(--mono)">nexusagent-runtime==1.9.0</code> straight from PyPI.
       The “model” is a small scripted router so everything stays offline and deterministic — the
       <b>agent loop, tool execution, memory and streaming are the real package code</b>, traced line by line.</p>
 
@@ -214,7 +214,7 @@
             <span>Text fragments arrive one by one through <code>on_delta</code> and assemble into the final answer.</span>
           </button>
           <div class="user-row">
-            <input id="user-input" placeholder="Your prompt — try: what color is the sky?" disabled
+            <input id="user-input" placeholder="Your prompt — try: who start first in chess? black or white" disabled
                    onkeydown="if(event.key==='Enter')runUserPrompt()">
             <button id="btn-run" onclick="runUserPrompt()" disabled>Run</button>
           </div>
@@ -319,7 +319,7 @@ runtime = <span class="fn">create_runtime</span>(memory=memory)
 <footer>
   <div class="wrap">
     <div>⬡ <b>NexusAgent</b> — MIT license · built by <a href="https://github.com/Abolfazlrwm">Abolfazl Ranjbaran</a></div>
-    <div><a href="https://github.com/Abolfazlrwm/nexusagent">GitHub</a> · <a href="https://pypi.org/project/nexusagent-runtime/">PyPI</a> · <a href="https://github.com/Abolfazlrwm/nexusagent/blob/main/CHANGELOG.md">Changelog</a> · <a href="https://github.com/Abolfazlrwm/nexusagent/blob/main/PROJECT_STATUS.md">Status</a></div>
+    <div><a href="https://github.com/Abolfazlrwm/nexusagent">GitHub</a> · <a href="https://pypi.org/project/nexusagent-runtime/">PyPI</a> · <a href="./api/">API reference</a> · <a href="https://github.com/Abolfazlrwm/nexusagent/blob/main/CHANGELOG.md">Changelog</a> · <a href="https://github.com/Abolfazlrwm/nexusagent/blob/main/PROJECT_STATUS.md">Status</a></div>
   </div>
 </footer>
 
@@ -583,11 +583,11 @@ _emit("info", f"nexusagent {nexusagent.__version__} ready — {len(nexusagent.__
       appendTrace("loading micropip …", "info");
       await pyodide.loadPackage("micropip");
       const micropip = pyodide.pyimport("micropip");
-      appendTrace("installing nexusagent-runtime==1.8.0 from PyPI (the real wheel) …", "info");
-      await micropip.install("nexusagent-runtime==1.8.0");
+      appendTrace("installing nexusagent-runtime==1.9.0 from PyPI (the real wheel) …", "info");
+      await micropip.install("nexusagent-runtime==1.9.0");
       appendTrace("wiring agents: scripted RouterProvider (scenarios) + the offline DemoProvider brain with its knowledge sheet (your prompts, ADR 0016/0017) + tool registry (echo, uppercase, calculator) + shared memory …", "info");
       await pyodide.runPythonAsync(document.getElementById("demo-py").textContent);
-      bootStatus.textContent = "ready · nexusagent 1.8.0";
+      bootStatus.textContent = "ready · nexusagent 1.9.0";
       bootStatus.className = "status ready";
       document.querySelectorAll(".scen[disabled]").forEach((b) => (b.disabled = false));
       userInput.disabled = false;
