@@ -250,6 +250,19 @@ def test_end_to_end_offline_math_through_the_real_tool_loop():
     assert result.output == "144 / 12 equals 12."
 
 
+def test_end_to_end_offline_chain_math_through_the_real_tool_loop():
+    agent = Agent(
+        DemoProvider(),
+        tool_registry=create_tool_registry(),
+        tool_executor=ToolExecutor(),
+    )
+
+    result = agent.run("what is 2+2*3?")
+
+    assert result.success
+    assert result.output == "2+2*3 equals 8."
+
+
 def test_calls_counter_counts_every_generate_response_call(provider: DemoProvider):
     provider.generate_response("hello")
     provider.generate_response("hello")

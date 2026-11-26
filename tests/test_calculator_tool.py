@@ -110,7 +110,6 @@ def test_whitespace_variants_all_produce_five(expression):
     [
         "hello",
         "2",
-        "2 + 3 + 4",
         "2 **",
         "2 ^ 3",
         "2 + abc",
@@ -118,6 +117,9 @@ def test_whitespace_variants_all_produce_five(expression):
         "2 /",
         "",
         "   +",
+        "2 +",
+        "+ 2",
+        "* 3",
     ],
 )
 def test_invalid_expressions_are_rejected(expression):
@@ -125,6 +127,37 @@ def test_invalid_expressions_are_rejected(expression):
 
     with pytest.raises(ValueError):
         tool.execute(expression)
+
+
+# --- Chains with standard precedence (v1.9.1) ---
+
+
+@pytest.mark.parametrize(
+    ("expression", "expected"),
+    [
+        ("2+2*3", "8"),
+        ("2 + 3 + 4", "9"),
+        ("10 - 4 / 2", "8"),
+        ("100 / 5 / 2", "10"),
+        ("2 * 3 * 4", "24"),
+        ("1.5 + 1.5 * 2", "4.5"),
+        ("5-3", "2"),
+        ("2 * -3", "-6"),
+        ("-5 - -3", "-2"),
+        ("2+2*3*4+1", "27"),
+    ],
+)
+def test_chains_evaluate_with_standard_precedence(expression, expected):
+    tool = CalculatorTool()
+
+    assert tool.execute(expression) == expected
+
+
+def test_chain_precedence_multiplication_binds_tighter_than_addition():
+    tool = CalculatorTool()
+
+    assert tool.execute("2 + 3 * 4") == "14"
+    assert tool.execute("2 * 3 + 4") == "10"
 
 
 # --- Division by zero ---
@@ -149,7 +182,7 @@ def test_division_by_zero_fails_cleanly():
         "os.system('ls')",
         "2 ** 10",
         "(2 + 3)",
-        "2 + 3 * 4",
+        "2 ~ 3",
     ],
 )
 def test_dangerous_expressions_are_rejected_not_evaluated(expression):
