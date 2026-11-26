@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-11-23
+
+### Added
+
+- **`nexusagent chat` — the offline chat REPL (ADR 0018)** — the
+  zero-config quickstart becomes one command: `pip install
+  nexusagent-runtime && nexusagent chat`. The default brain is the
+  shipped offline `DemoProvider` (ADR 0016/0017) wired to the real tool
+  registry, tool executor and `InMemoryMemory(max_turns=16)` — math
+  runs the calculator loop, your name is remembered across turns, the
+  knowledge sheet answers chess/colors/science, and answers stream
+  word by word (ADR 0009). `--provider openai|anthropic|gemini|http|fake`
+  builds a real provider from the same `NEXUS_*` environment as the
+  one-shot command (configuration errors surface before any network
+  call); `--no-stream` prints whole answers. Commands: `/help`,
+  `/reset`, `/tools`, `/exit`, `/quit`; EOF and Ctrl+C exit gracefully.
+- 23 new offline tests (1381 → 1404): scripted conversations through
+  injected input/output callables — tool-loop math, name memory,
+  `/reset` with and without memory, `/tools`, all exit paths, streaming
+  vs whole answers, the `--provider` env path, and the real
+  `python -m nexusagent chat` subprocess round trip.
+
 ## [1.8.0] - 2026-11-23
 
 ### Added

@@ -4,7 +4,7 @@ This file exists so that whoever picks this project back up — even months
 later — can understand exactly what works, what doesn't exist yet, and
 where to resume without re-reading the entire history.
 
-## Current state: WORKING and STABLE — 1.8
+## Current state: WORKING and STABLE — 1.9
 
 - **1.0.0 declared API stability** (ADR 0010): the full public surface is
   `nexusagent.__all__` at the package root, governed by SemVer and pinned
@@ -18,7 +18,8 @@ where to resume without re-reading the entire history.
   names), 40 at 1.6.0 (minimal multi-agent orchestration, ADR 0015 —
   `AgentTeam`, `TeamResult`, `create_provider_router`) and 41 at 1.7.0
   (the offline demo brain, ADR 0016 — `DemoProvider`) and still 41 at 1.8.0
-  (the demo brain knowledge sheet, ADR 0017 — behavior only, no new root names).
+  (the demo brain knowledge sheet, ADR 0017 — behavior only, no new root names) and
+  still 41 at 1.9.0 (`nexusagent chat`, ADR 0018 — CLI layer, no new root names).
 - **1.1.0 added automatic HTTP retries** (ADR 0011); **1.2.0 added
   in-process conversation memory** (ADR 0012); **1.3.0 added the
   persistent SQLite memory backend** (ADR 0013); **1.4.0 added a
@@ -26,8 +27,9 @@ where to resume without re-reading the entire history.
   native per-vendor history threading** (ADR 0014); **1.6.0 added
   minimal multi-agent orchestration** (ADR 0015); **1.7.0 added the
   offline demo brain** (ADR 0016); **1.8.0 taught it a keyword-scored knowledge
-  sheet with did-you-mean suggestions** (ADR 0017) — all additive, all offline-tested.
-- 1381 tests, all passing.
+  sheet with did-you-mean suggestions** (ADR 0017); **1.9.0 added `nexusagent chat`,
+  the offline chat REPL** (ADR 0018) — all additive, all offline-tested.
+- 1404 tests, all passing.
 - `ruff check .` and `ruff format --check .` — clean.
 - `mypy --strict` — clean.
 - `pytest` enforces a coverage floor of 95% (currently ~99.5%).
