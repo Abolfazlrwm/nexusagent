@@ -500,6 +500,7 @@ All examples run offline, with no API keys:
 
 ## Documentation
 
+- [API reference](https://abolfazlrwm.github.io/nexusagent/api/) — every public module and class, generated with pdoc
 - [Architecture](docs/architecture.md) — layers, module map, dependency rules
 - [Concepts](docs/concepts.md) — Agent, Provider, Tool, Runtime, Settings
 - [Guides](docs/) — write a custom [provider](docs/guides/custom-provider.md), [tool](docs/guides/custom-tool.md) or [async runtime](docs/guides/async.md)
