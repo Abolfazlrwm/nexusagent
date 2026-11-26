@@ -177,7 +177,7 @@
     <div class="kicker">Live demo · Pyodide + the actual PyPI wheel</div>
     <h2>Watch the agent loop think — in your browser</h2>
     <p class="sub">No install, no API keys. Click <b>Boot runtime</b> and this page loads CPython (WASM)
-      plus <code style="font-family:var(--mono)">nexusagent-runtime==1.9.0</code> straight from PyPI.
+      plus <code style="font-family:var(--mono)">nexusagent-runtime==1.9.1</code> straight from PyPI.
       The “model” is a small scripted router so everything stays offline and deterministic — the
       <b>agent loop, tool execution, memory and streaming are the real package code</b>, traced line by line.</p>
 
@@ -583,11 +583,11 @@ _emit("info", f"nexusagent {nexusagent.__version__} ready — {len(nexusagent.__
       appendTrace("loading micropip …", "info");
       await pyodide.loadPackage("micropip");
       const micropip = pyodide.pyimport("micropip");
-      appendTrace("installing nexusagent-runtime==1.9.0 from PyPI (the real wheel) …", "info");
-      await micropip.install("nexusagent-runtime==1.9.0");
+      appendTrace("installing nexusagent-runtime==1.9.1 from PyPI (the real wheel) …", "info");
+      await micropip.install("nexusagent-runtime==1.9.1");
       appendTrace("wiring agents: scripted RouterProvider (scenarios) + the offline DemoProvider brain with its knowledge sheet (your prompts, ADR 0016/0017) + tool registry (echo, uppercase, calculator) + shared memory …", "info");
       await pyodide.runPythonAsync(document.getElementById("demo-py").textContent);
-      bootStatus.textContent = "ready · nexusagent 1.9.0";
+      bootStatus.textContent = "ready · nexusagent 1.9.1";
       bootStatus.className = "status ready";
       document.querySelectorAll(".scen[disabled]").forEach((b) => (b.disabled = false));
       userInput.disabled = false;
