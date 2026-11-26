@@ -4,8 +4,9 @@ from dataclasses import replace
 
 import nexusagent
 from nexusagent.application import Runtime, create_application_runtime
+from nexusagent.chat import build_chat_runtime, run_chat_repl
 from nexusagent.config import Settings
-from nexusagent.provider import ProviderError
+from nexusagent.provider import ProviderConfigurationError, ProviderError
 from nexusagent.tool_executor import ToolExecutionError
 
 
@@ -46,11 +47,44 @@ def _run_tool_command(argv: list[str]) -> None:
     print(result)
 
 
+def _run_chat_command(argv: list[str]) -> None:
+    parser = argparse.ArgumentParser(
+        prog="nexusagent chat",
+        description="Chat with the NexusAgent runtime in your terminal (ADR 0018).",
+    )
+    parser.add_argument(
+        "--provider",
+        help="provider to use (default: the offline demo brain; overrides NEXUS_PROVIDER)",
+    )
+    parser.add_argument(
+        "--no-stream",
+        action="store_true",
+        help="print whole answers instead of streaming word by word",
+    )
+    args = parser.parse_args(argv)
+
+    try:
+        runtime, label = build_chat_runtime(args.provider)
+    except (ValueError, ProviderConfigurationError) as exc:
+        print(f"nexusagent: error: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        run_chat_repl(runtime, label=label, stream=not args.no_stream)
+    except (ProviderError, ToolExecutionError) as exc:
+        print(f"nexusagent: error: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+
 def main() -> None:
     argv = sys.argv[1:]
 
     if argv and argv[0] == "tool":
         _run_tool_command(argv[1:])
+        return
+
+    if argv and argv[0] == "chat":
+        _run_chat_command(argv[1:])
         return
 
     parser = argparse.ArgumentParser(

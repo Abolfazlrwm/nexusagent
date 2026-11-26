@@ -89,6 +89,7 @@ concepts: [docs/concepts.md](docs/concepts.md) · decisions:
 
 ```bash
 pip install nexusagent-runtime
+nexusagent chat   # chat with the runtime in your terminal — offline, no API keys
 ```
 
 > The **import name** is `nexusagent`; the **PyPI distribution** is
@@ -129,6 +130,24 @@ Vendor wire adapters and the built-in demo tools are constructed through
 `create_provider()` / `Settings` and the registry; they are deliberately
 not part of the root surface. Submodule imports keep working, but only
 the root is guaranteed stable.
+
+### Chat in your terminal
+
+`nexusagent chat` opens a conversation with the runtime — offline by
+default, streamed word by word, with the real tool loop and memory
+behind it (ADR 0018):
+
+```bash
+nexusagent chat                    # the offline demo brain (no API keys, no network)
+nexusagent chat --no-stream        # whole answers instead of streamed ones
+nexusagent chat --provider openai  # a real provider from the NEXUS_* environment
+```
+
+Inside the chat: `/help`, `/reset` (clear the conversation memory),
+`/tools` (list the registered tools), `/exit`. The offline brain does
+math through the calculator tool, remembers your name across turns,
+answers a small chess/color/science fact sheet, and suggests the
+closest topic when it misses (ADR 0016/0017).
 
 ### Agent with tools
 
@@ -475,6 +494,7 @@ All examples run offline, with no API keys:
 - [`examples/native_history.py`](examples/native_history.py) — per-vendor native history threading, offline (local echo server)
 - [`examples/orchestration.py`](examples/orchestration.py) — a two-agent team with a provider-backed router, offline
 - [`examples/demo_provider.py`](examples/demo_provider.py) — the offline demo brain: facts, knowledge sheet, tool-loop math, name memory
+- `nexusagent chat` — the interactive offline REPL (see *Chat in your terminal* above)
 - [`examples/async_tool_loop.py`](examples/async_tool_loop.py) — the async tool loop with an awaited tool
 - [`examples/http_provider_local.py`](examples/http_provider_local.py) — `http` provider against a local backend
 
