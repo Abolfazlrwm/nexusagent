@@ -46,7 +46,7 @@ from nexusagent.tool import AsyncTool, Tool
 from nexusagent.tool_executor import ToolExecutionError, ToolExecutor
 from nexusagent.tool_registry import ToolRegistry
 
-__version__ = "1.9.0"
+__version__ = "1.9.1"
 
 __all__ = [
     # Agent layer (sync and async)
