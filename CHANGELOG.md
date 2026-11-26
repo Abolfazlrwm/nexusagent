@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.1] - 2026-11-26
+
+### Fixed
+
+- **The calculator evaluates arithmetic chains with standard
+  precedence** — found by the real-browser E2E while validating 1.9.0:
+  a natural prompt like `what is 2+2*3?` was captured whole by the demo
+  brain (ADR 0016) but the calculator accepted exactly one binary
+  operation, so the browser demo answered with a tool error instead of
+  an answer. The tool now runs a hand-written tokenizer and
+  precedence-climbing parser: `*`/`/` bind tighter than `+`/`-`, all
+  left-associative, unary signs preserved (`-5 - -3` = -2, `2 * -3` =
+  -6). Security unchanged: no eval, no exec, no imports beyond
+  re/math; malformed shapes, bare numbers, lone operators, parentheses
+  and `**` still raise the same ValueError; `Division by zero` is
+  unchanged. 14 new tests (1404 → 1418) including end-to-end
+  `agent.run("what is 2+2*3?") == "2+2*3 equals 8."`.
+
 ## [1.9.0] - 2026-11-23
 
 ### Added

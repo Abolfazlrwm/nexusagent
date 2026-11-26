@@ -19,7 +19,8 @@ where to resume without re-reading the entire history.
   `AgentTeam`, `TeamResult`, `create_provider_router`) and 41 at 1.7.0
   (the offline demo brain, ADR 0016 — `DemoProvider`) and still 41 at 1.8.0
   (the demo brain knowledge sheet, ADR 0017 — behavior only, no new root names) and
-  still 41 at 1.9.0 (`nexusagent chat`, ADR 0018 — CLI layer, no new root names).
+  still 41 at 1.9.0 (`nexusagent chat`, ADR 0018 — CLI layer, no new root names)
+  and still 41 at 1.9.1 (calculator chains fix — behavior only).
 - **1.1.0 added automatic HTTP retries** (ADR 0011); **1.2.0 added
   in-process conversation memory** (ADR 0012); **1.3.0 added the
   persistent SQLite memory backend** (ADR 0013); **1.4.0 added a
@@ -28,8 +29,9 @@ where to resume without re-reading the entire history.
   minimal multi-agent orchestration** (ADR 0015); **1.7.0 added the
   offline demo brain** (ADR 0016); **1.8.0 taught it a keyword-scored knowledge
   sheet with did-you-mean suggestions** (ADR 0017); **1.9.0 added `nexusagent chat`,
-  the offline chat REPL** (ADR 0018) — all additive, all offline-tested.
-- 1404 tests, all passing.
+  the offline chat REPL** (ADR 0018); **1.9.1 taught the calculator full
+  arithmetic chains** — all additive, all offline-tested.
+- 1418 tests, all passing.
 - `ruff check .` and `ruff format --check .` — clean.
 - `mypy --strict` — clean.
 - `pytest` enforces a coverage floor of 95% (currently ~99.5%).
